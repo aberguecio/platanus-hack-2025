@@ -11,6 +11,8 @@ services:
     volumes:
       - ./backend:/app
     command: bash entrypoint.sh
+    networks:
+      - webapp
 
   frontend:
     build:
@@ -27,3 +29,15 @@ services:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
+    networks:
+      - webapp
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ph.rule=Host(`ph.berguecio.cl`)"
+      - "traefik.http.routers.ph.entrypoints=websecure"
+      - "traefik.http.routers.ph.tls=true"
+      - "traefik.http.services.ph.loadbalancer.server.port=3000"
+
+networks:
+  webapp:
+    external: true
