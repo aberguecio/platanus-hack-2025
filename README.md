@@ -45,35 +45,57 @@ ph2/
 
 ## Instalación y Ejecución
 
-### 1. Clonar o navegar al proyecto
+Hay dos configuraciones disponibles:
+
+### Desarrollo Local
+
+Para desarrollo local con puertos expuestos:
 
 ```bash
-cd ph2
+# Levantar los servicios
+docker compose -f docker-compose.local.yml up -d
+
+# Ver logs
+docker compose -f docker-compose.local.yml logs -f
+
+# Detener
+docker compose -f docker-compose.local.yml down
 ```
 
-### 2. Levantar los servicios
-
-```bash
-docker-compose up -d
-```
-
-Este comando levantará dos servicios:
-
-- **FastAPI Backend**: puerto 8000
-- **Next.js Frontend**: puerto 3000
-
-### 3. Verificar que los servicios estén corriendo
-
-```bash
-docker-compose ps
-```
-
-### 4. Acceder a las aplicaciones
-
+**Acceso:**
 - **Frontend**: <http://localhost:3000>
 - **Backend API**: <http://localhost:8000>
 - **API Docs (Swagger)**: <http://localhost:8000/docs>
 - **API Redoc**: <http://localhost:8000/redoc>
+
+### Producción con Traefik
+
+Para producción usando Traefik como reverse proxy:
+
+```bash
+# Asegurarse de que la red webapp existe
+docker network create webapp
+
+# Levantar los servicios
+docker compose up -d
+
+# Ver logs
+docker compose logs -f
+
+# Detener
+docker compose down
+```
+
+**Acceso (requiere Traefik configurado):**
+- **Frontend**: <https://ph.berguecio.cl>
+- **Backend API**: <https://ph.berguecio.cl/api>
+- **API Docs**: <https://ph.berguecio.cl/api/docs>
+
+**Arquitectura:**
+- Frontend accesible en raíz del dominio
+- Backend accesible en `/api` (el middleware stripprefix quita `/api` antes de enviar al backend)
+- Ambos servicios en la red `webapp` compartida con Traefik
+- Certificados SSL automáticos vía Traefik
 
 ## Migraciones de Base de Datos
 
