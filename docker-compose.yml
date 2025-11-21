@@ -11,6 +11,14 @@ services:
     command: bash entrypoint.sh
     networks:
       - webapp
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ph-api.rule=Host(`ph.berguecio.cl`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.ph-api.entrypoints=websecure"
+      - "traefik.http.routers.ph-api.tls=true"
+      - "traefik.http.services.ph-api.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.ph-api-stripprefix.stripprefix.prefixes=/api"
+      - "traefik.http.routers.ph-api.middlewares=ph-api-stripprefix"
 
   frontend:
     build:
