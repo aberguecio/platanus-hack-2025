@@ -16,7 +16,7 @@ export default function Home() {
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const API_URL = '/api'
 
   useEffect(() => {
     fetchItems()
