@@ -1,0 +1,10 @@
+#!/bin/bash
+
+echo "Waiting for database to be ready..."
+sleep 2
+
+echo "Applying database migrations..."
+alembic upgrade head
+
+echo "Starting FastAPI server..."
+exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload
