@@ -4,6 +4,7 @@ from typing import Optional
 from anthropic import Anthropic
 from .base import LLMAgent
 from .tools import get_registry, ExecutionContext
+from .prompts import get_prompt_builder
 
 class AnthropicAgent(LLMAgent):
     """
@@ -17,6 +18,7 @@ class AnthropicAgent(LLMAgent):
 
         self.client = Anthropic(api_key=self.api_key)
         self.model = "claude-haiku-4-5-20251001" #"claude-3-haiku-20240307"
+        self.prompt_builder = get_prompt_builder()
 
     async def process_message(
         self,
@@ -44,73 +46,13 @@ class AnthropicAgent(LLMAgent):
         registry = get_registry()
         tools = registry.get_schemas()
 
-        # Build system prompt with context
-        has_photo = ctx.has_photo
-        photo_context = "\n- USER HAS SENT A PHOTO! They want to save it as a memory." if has_photo else ""
-
-        # Extract conversation history from context
-        conversation_history = ctx.conversation_history or []
-        
-        # Build conversation history section if available
-        history_section = ""
-        if conversation_history:
-            history_text = "\n".join([
-                f"{'Usuario' if msg['role'] == 'user' else 'Asistente'}: {msg['content']}"
-                for msg in conversation_history  # Already in chronological order (oldest first)
-            ])
-            history_section = f"""
-
-Conversación reciente con este usuario:
-{history_text}
-
-Usa este contexto para dar respuestas más naturales y coherentes, recordando lo que se habló anteriormente.
-"""
-
-        system_prompt = f"""You are a helpful assistant for a memories storage bot on Telegram.
-Users can create events and store memories (photos and text) in them.
-
-Current user context:
-- Telegram ID: {ctx.telegram_id or 'unknown'}
-- Username: {ctx.username or 'unknown'}
-- First name: {ctx.first_name or 'unknown'}{photo_context}
-
-Your job is to:
-1. Understand what the user wants to do
-2. Call the appropriate tool with the right parameters
-3. Provide a friendly response based on the tool results
-
-Available actions:
-- create_event: Create a new event
-- join_event: Join an existing event
-- add_memory: Add a memory to an event (use this when user sends a photo!)
-- list_events: Show user's events
-- list_memories: Show memories from an event
-- get_faq: Get help and instructions (use when user asks "how to", "help", "how do I", etc.)
-
-IMPORTANT PHOTO HANDLING:
-When the user has sent a photo (indicated above), they want to save it as a memory. Look for:
-- Event names or IDs in their message: "sube a hackaton", "add to event #1", "save to birthday"
-- If you can identify the event, use add_memory tool immediately
-- Use list_events first if you need to find the event ID by name
-- DO NOT use get_faq when they've sent a photo - they want ACTION, not help!
-
-Examples with photos:
-- "Sube a hackaton" + photo → list_events to find "hackaton", then add_memory to that event
-- "Add to event #1" + photo → add_memory with event_id=1
-- Photo only → ask which event they want to add it to
-
-When user asks questions (WITHOUT photo) like:
-- "How do I upload a photo?" → use get_faq with topic "upload_image"
-- "How to invite someone?" → use get_faq with topic "invite_user"
-- "Help" → use get_faq with topic "general"
-
-When showing memories with images:
-- The image_url field will contain a presigned URL that's valid for 1 hour
-- You can include the URL in your response so users can view the photo
-- Format: "📸 [View photo](URL)" in markdown
-
-When you use a tool, wait for the result before responding to the user.{history_section}
-"""
+        # Build system prompt with context using the prompt builder
+        system_prompt = self.prompt_builder.build_system_prompt(
+            telegram_id=ctx.telegram_id,
+            username=ctx.username,
+            first_name=ctx.first_name,
+            has_photo=ctx.has_photo
+        )
 
         # Initialize message history for the conversation
         messages = [
