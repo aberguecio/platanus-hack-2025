@@ -1,5 +1,12 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+from enums import (
+    MediaTypeEnum as MediaType,
+    ChannelTypeEnum as ChannelType,
+    ConversationStatusEnum as ConversationStatus,
+    MessageDirectionEnum as MessageDirection,
+)
 
 
 class TelegramUser(BaseModel):
@@ -88,3 +95,164 @@ class TelegramUpdate(BaseModel):
                 }
             }
         }
+
+
+# ============================================================================
+# Database Model Schemas
+# ============================================================================
+
+# User Schemas
+class UserBase(BaseModel):
+    telegram_id: str
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
+
+
+class UserCreate(UserBase):
+    pass
+
+
+class User(UserBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Event Schemas
+class EventBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    event_date: Optional[datetime] = None
+
+
+class EventCreate(EventBase):
+    pass
+
+
+class EventUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    event_date: Optional[datetime] = None
+    summary: Optional[str] = None
+    ai_context: Optional[str] = None
+
+
+class Event(EventBase):
+    id: int
+    summary: Optional[str] = None
+    ai_context: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Memory Schemas
+class MemoryBase(BaseModel):
+    event_id: int
+    user_id: int
+    text: Optional[str] = None
+    s3_url: Optional[str] = None
+    media_type: Optional[MediaType] = None
+    memory_metadata: Optional[Dict[str, Any]] = None
+
+
+class MemoryCreate(MemoryBase):
+    message_id: Optional[int] = None
+
+
+class Memory(MemoryBase):
+    id: int
+    message_id: Optional[int] = None
+    embedding: Optional[List[float]] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Channel Schemas
+class ChannelBase(BaseModel):
+    name: str
+    type: ChannelType
+    identifier: str
+
+
+class ChannelCreate(ChannelBase):
+    pass
+
+
+class Channel(ChannelBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# AIMemoryAssistant Schemas
+class AssistantBase(BaseModel):
+    personality: Optional[str] = None
+    instructions: str
+
+
+class AssistantCreate(AssistantBase):
+    pass
+
+
+class Assistant(AssistantBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Conversation Schemas
+class ConversationBase(BaseModel):
+    user_id: int
+    assistant_id: int
+    channel_id: int
+    title: Optional[str] = None
+    status: ConversationStatus = ConversationStatus.ACTIVE
+
+
+class ConversationCreate(ConversationBase):
+    pass
+
+
+class ConversationUpdate(BaseModel):
+    title: Optional[str] = None
+    status: Optional[ConversationStatus] = None
+
+
+class Conversation(ConversationBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Message Schemas
+class MessageBase(BaseModel):
+    conversation_id: int
+    direction: MessageDirection
+    content: str
+
+
+class MessageCreate(MessageBase):
+    pass
+
+
+class Message(MessageBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
