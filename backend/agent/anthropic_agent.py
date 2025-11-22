@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 from anthropic import Anthropic
 from .base import LLMAgent
 
@@ -15,18 +15,31 @@ class AnthropicAgent(LLMAgent):
             raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
         self.client = Anthropic(api_key=self.api_key)
-        # Using Claude 3 Haiku - fastest and cheapest model
-        self.model = "claude-3-haiku-20240307"
+        self.model = "claude-haiku-4-5-20251001" #"claude-3-haiku-20240307"
+
+        # Store tool executor function (will be set externally)
+        self.tool_executor: Optional[Callable] = None
+
+    def set_tool_executor(self, executor: Callable):
+        """Set the function that will execute tools"""
+        self.tool_executor = executor
 
     async def process_message(
         self,
         user_message: str,
         context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    ) -> str:
         """
         Process message using Claude with tool calling for structured actions.
+        Returns the final text response after executing all necessary tools.
         """
         context = context or {}
+
+        # Handle empty messages
+        if not user_message or not user_message.strip():
+            return "Please send me a message!"
+
+        print(f"\n[AGENT] Processing message: {user_message}")
 
         # Define available tools/actions
         tools = [
@@ -85,66 +98,160 @@ class AnthropicAgent(LLMAgent):
                     },
                     "required": ["event_id"]
                 }
+            },
+            {
+                "name": "get_faq",
+                "description": "Get help and instructions about how to use the bot features",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "topic": {
+                            "type": "string",
+                            "description": "The help topic: 'upload_image', 'invite_user', 'create_event', 'add_memory', 'general'",
+                            "enum": ["upload_image", "invite_user", "create_event", "add_memory", "general"]
+                        }
+                    },
+                    "required": ["topic"]
+                }
             }
         ]
 
         # Build system prompt with context
+        has_photo = context.get('has_photo', False)
+        photo_context = "\n- USER HAS SENT A PHOTO! They want to save it as a memory." if has_photo else ""
+
         system_prompt = f"""You are a helpful assistant for a memories storage bot on Telegram.
 Users can create events and store memories (photos and text) in them.
 
 Current user context:
 - Telegram ID: {context.get('telegram_id', 'unknown')}
 - Username: {context.get('username', 'unknown')}
-- First name: {context.get('first_name', 'unknown')}
+- First name: {context.get('first_name', 'unknown')}{photo_context}
 
 Your job is to:
 1. Understand what the user wants to do
 2. Call the appropriate tool with the right parameters
-3. Provide a friendly response
+3. Provide a friendly response based on the tool results
 
 Available actions:
 - create_event: Create a new event
 - join_event: Join an existing event
-- add_memory: Add a memory to an event
+- add_memory: Add a memory to an event (use this when user sends a photo!)
 - list_events: Show user's events
 - list_memories: Show memories from an event
+- get_faq: Get help and instructions (use when user asks "how to", "help", "how do I", etc.)
+
+IMPORTANT PHOTO HANDLING:
+When the user has sent a photo (indicated above), they want to save it as a memory. Look for:
+- Event names or IDs in their message: "sube a hackaton", "add to event #1", "save to birthday"
+- If you can identify the event, use add_memory tool immediately
+- Use list_events first if you need to find the event ID by name
+- DO NOT use get_faq when they've sent a photo - they want ACTION, not help!
+
+Examples with photos:
+- "Sube a hackaton" + photo → list_events to find "hackaton", then add_memory to that event
+- "Add to event #1" + photo → add_memory with event_id=1
+- Photo only → ask which event they want to add it to
+
+When user asks questions (WITHOUT photo) like:
+- "How do I upload a photo?" → use get_faq with topic "upload_image"
+- "How to invite someone?" → use get_faq with topic "invite_user"
+- "Help" → use get_faq with topic "general"
+
+When you use a tool, wait for the result before responding to the user.
 """
 
-        # Call Claude API with tools
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=1024,
-            system=system_prompt,
-            tools=tools,
-            messages=[
-                {
-                    "role": "user",
-                    "content": user_message
-                }
-            ]
-        )
+        # Initialize message history for the conversation
+        messages = [
+            {
+                "role": "user",
+                "content": user_message
+            }
+        ]
 
-        # Parse response
-        result = {
-            "action": None,
-            "parameters": {},
-            "response_text": ""
-        }
+        # Tool execution loop
+        max_iterations = 5  # Prevent infinite loops
+        iteration = 0
 
-        # Extract tool use and text
-        for block in response.content:
-            if block.type == "tool_use":
-                result["action"] = block.name
-                result["parameters"] = block.input
-            elif block.type == "text":
-                result["response_text"] = block.text
+        while iteration < max_iterations:
+            iteration += 1
 
-        # If no tool was used, generate a conversational response
-        if not result["action"]:
-            result["action"] = "chat"
-            result["response_text"] = result["response_text"] or "I'm not sure what you want to do. Can you please clarify?"
+            # Call Claude API with tools
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=1024,
+                system=system_prompt,
+                tools=tools,
+                messages=messages
+            )
 
-        return result
+            # Check if Claude wants to use a tool
+            tool_use_blocks = [block for block in response.content if block.type == "tool_use"]
+
+            if not tool_use_blocks:
+                # No tools needed, extract final text response
+                text_blocks = [block for block in response.content if block.type == "text"]
+                final_text = text_blocks[0].text if text_blocks else "Done!"
+                print(f"[AGENT] Final response: {final_text}")
+                return final_text
+
+            # Claude wants to use tools - execute them
+            print(f"[AGENT] Claude wants to use {len(tool_use_blocks)} tool(s)")
+
+            # First, add Claude's response to messages
+            messages.append({
+                "role": "assistant",
+                "content": response.content
+            })
+
+            # Execute each tool and collect results
+            tool_results = []
+            for tool_block in tool_use_blocks:
+                tool_name = tool_block.name
+                tool_input = tool_block.input
+                tool_use_id = tool_block.id
+
+                print(f"[AGENT] Executing tool: {tool_name}")
+                print(f"[AGENT] Tool input: {json.dumps(tool_input, indent=2)}")
+
+                # Execute the tool using the executor function
+                if self.tool_executor:
+                    try:
+                        result = await self.tool_executor(tool_name, tool_input, context)
+                        print(f"[AGENT] Tool result: {json.dumps(result, indent=2)}")
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": json.dumps(result)
+                        })
+                    except Exception as e:
+                        print(f"[AGENT] Tool execution error: {e}")
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": json.dumps({"success": False, "message": f"Error: {str(e)}"})
+                        })
+                else:
+                    # No executor set, return error
+                    print(f"[AGENT] ERROR: Tool executor not configured!")
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_id,
+                        "content": json.dumps({"success": False, "message": "Tool executor not configured"})
+                    })
+
+            # Add tool results to messages for next iteration
+            messages.append({
+                "role": "user",
+                "content": tool_results
+            })
+
+            # Continue loop - Claude will process the tool results and either:
+            # 1. Use more tools, or
+            # 2. Provide a final text response
+
+        # If we hit max iterations, return a fallback
+        return "I've completed the requested actions."
 
     async def generate_response(self, prompt: str) -> str:
         """
