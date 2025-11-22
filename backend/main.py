@@ -14,6 +14,10 @@ app = FastAPI(title="Memories Bot API", version="1.0.0")
 agent = AnthropicAgent()
 s3_service = S3Service()
 
+# Initialize Telegram service (requires bot token from environment)
+import os
+telegram_service = TelegramService(os.getenv("TELEGRAM_BOT_TOKEN", ""))
+
 
 # Tool executor function that the agent will call
 async def tool_executor(tool_name: str, tool_input: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
@@ -82,16 +86,12 @@ async def tool_executor(tool_name: str, tool_input: Dict[str, Any], context: Dic
 
             # If there's a photo, download from Telegram and upload to S3
             if photo_file_id:
-                import os
-                bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-
-                if not bot_token:
+                if not telegram_service.bot_token:
                     print("[TOOL] ERROR: TELEGRAM_BOT_TOKEN not found in environment")
                     image_url = photo_file_id  # Fallback to file_id
                 else:
                     try:
                         print(f"[TOOL] Downloading photo from Telegram...")
-                        telegram_service = TelegramService(bot_token)
                         image_data = await telegram_service.download_file(photo_file_id)
                         print(f"[TOOL] Photo downloaded, size: {len(image_data)} bytes")
 
@@ -281,87 +281,49 @@ async def telegram_webhook(update: TelegramUpdate, db: Session = Depends(get_db)
     and returns a Telegram Bot API response.
     """
     try:
-        # Extract message data
-        message = update.message
-        if not message:
-            return {"status": "ignored", "reason": "no_message"}
+        # Extract message data using Telegram service
+        message_data = telegram_service.extract_message_data(update)
+        
+        if not message_data:
+            return telegram_service.format_error_response(
+                status="ignored",
+                reason="no_message_or_user"
+            )
 
-        # Extract user info
-        from_user = message.from_
-        if not from_user:
-            return {"status": "ignored", "reason": "no_user"}
-
-        telegram_id = str(from_user.id)
-        username = from_user.username
-        first_name = from_user.first_name
-        last_name = from_user.last_name
-        chat_id = message.chat.id
-
-        # Get or create user
+        # Get or create user in database
         user = DatabaseService.get_or_create_user(
             db=db,
-            telegram_id=telegram_id,
-            username=username,
-            first_name=first_name,
-            last_name=last_name
+            telegram_id=message_data["telegram_id"],
+            username=message_data["username"],
+            first_name=message_data["first_name"],
+            last_name=message_data["last_name"]
         )
-
-        # Extract message content
-        text = message.text or ""
-        caption = message.caption or ""  # Photo captions come in a different field
-        photo = message.photo  # Array of PhotoSize objects
-
-        # DEBUG LOGS
-        print(f"\n[WEBHOOK] Received update:")
-        print(f"[WEBHOOK] - message.text: '{text}'")
-        print(f"[WEBHOOK] - message.caption: '{caption}'")
-        print(f"[WEBHOOK] - message.photo: {bool(photo)} (count: {len(photo) if photo else 0})")
-
-        # Handle photo if present
-        photo_file_id = None
-        if photo:
-            largest_photo = max(photo, key=lambda p: p.file_size or 0)
-            photo_file_id = largest_photo.file_id
-            print(f"[WEBHOOK] - photo_file_id: {photo_file_id}")
-
-        # Use caption if photo has one, otherwise use text
-        if photo and caption.strip():
-            text = caption
-            print(f"[WEBHOOK] Using caption as text: '{text}'")
-        elif photo and not text.strip():
-            # If user sent only a photo without text/caption, create a default message
-            text = "I sent you a photo. Please help me save it as a memory."
-            print(f"[WEBHOOK] Photo without caption, using default message")
-
-        print(f"[WEBHOOK] Final text to process: '{text}'")
-        print(f"[WEBHOOK] Has photo: {bool(photo)}")
-        print()
 
         # Prepare context for agent
         context = {
-            "telegram_id": telegram_id,
-            "username": username,
-            "first_name": first_name,
-            "last_name": last_name,
+            "telegram_id": message_data["telegram_id"],
+            "username": message_data["username"],
+            "first_name": message_data["first_name"],
+            "last_name": message_data["last_name"],
             "user_db_id": user.id,
-            "has_photo": bool(photo),
-            "photo_file_id": photo_file_id
+            "has_photo": message_data["has_photo"],
+            "photo_file_id": message_data["photo_file_id"]
         }
 
         # Process message with agent - it now handles tool execution internally
-        final_response = await agent.process_message(text, context)
+        final_response = await agent.process_message(message_data["text"], context)
 
-        # Return response for the bot to send
-        # Using Telegram Bot API response format
-        return {
-            "method": "sendMessage",
-            "chat_id": chat_id,
-            "text": final_response,
-            "parse_mode": "Markdown"
-        }
+        # Return formatted response using Telegram service
+        return telegram_service.format_response(
+            text=final_response,
+            chat_id=message_data["chat_id"]
+        )
 
     except Exception as e:
-        print(f"Error processing webhook: {e}")
+        print(f"[WEBHOOK] Error processing webhook: {e}")
         import traceback
         traceback.print_exc()
-        return {"status": "error", "message": str(e)}
+        return telegram_service.format_error_response(
+            status="error",
+            reason=str(e)
+        )
