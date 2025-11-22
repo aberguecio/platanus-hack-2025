@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from database import get_db
 from agent import AnthropicAgent
+from agent.services import MessagingService
 from services import DatabaseService, TelegramService, S3Service
 from schemas import TelegramUpdate
 from models import User
@@ -17,6 +18,13 @@ s3_service = S3Service()
 # Initialize Telegram service (requires bot token from environment)
 import os
 telegram_service = TelegramService(os.getenv("TELEGRAM_BOT_TOKEN", ""))
+
+# Initialize Messaging service (coordinates agent, telegram, and database)
+messaging_service = MessagingService(
+    agent=agent,
+    telegram_service=telegram_service,
+    database_service=DatabaseService
+)
 
 
 # Tool executor function that the agent will call
@@ -277,53 +285,9 @@ async def telegram_webhook(update: TelegramUpdate, db: Session = Depends(get_db)
     """
     Main webhook endpoint that receives raw Telegram updates and processes them.
 
-    Receives a Telegram Update object, processes it with the AI agent,
+    Receives a Telegram Update object, processes it with the AI agent via MessagingService,
     and returns a Telegram Bot API response.
+    
+    La lógica de procesamiento está ahora encapsulada en MessagingService.
     """
-    try:
-        # Extract message data using Telegram service
-        message_data = telegram_service.extract_message_data(update)
-        
-        if not message_data:
-            return telegram_service.format_error_response(
-                status="ignored",
-                reason="no_message_or_user"
-            )
-
-        # Get or create user in database
-        user = DatabaseService.get_or_create_user(
-            db=db,
-            telegram_id=message_data["telegram_id"],
-            username=message_data["username"],
-            first_name=message_data["first_name"],
-            last_name=message_data["last_name"]
-        )
-
-        # Prepare context for agent
-        context = {
-            "telegram_id": message_data["telegram_id"],
-            "username": message_data["username"],
-            "first_name": message_data["first_name"],
-            "last_name": message_data["last_name"],
-            "user_db_id": user.id,
-            "has_photo": message_data["has_photo"],
-            "photo_file_id": message_data["photo_file_id"]
-        }
-
-        # Process message with agent - it now handles tool execution internally
-        final_response = await agent.process_message(message_data["text"], context)
-
-        # Return formatted response using Telegram service
-        return telegram_service.format_response(
-            text=final_response,
-            chat_id=message_data["chat_id"]
-        )
-
-    except Exception as e:
-        print(f"[WEBHOOK] Error processing webhook: {e}")
-        import traceback
-        traceback.print_exc()
-        return telegram_service.format_error_response(
-            status="error",
-            reason=str(e)
-        )
+    return await messaging_service.process_response(update, db)
