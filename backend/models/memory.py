@@ -32,7 +32,7 @@ class Memory(Base):
     message_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
     text = Column(Text, nullable=True)
     s3_url = Column(String, nullable=True)
-    media_type = Column(Enum(MediaTypeEnum), nullable=True)
+    media_type = Column(Enum(MediaTypeEnum, values_callable=lambda x: [e.value for e in x]), nullable=True)
     memory_metadata = Column(JSONB, nullable=True)
     embedding = Column(Vector(1024), nullable=True)  # Voyage AI voyage-2 embeddings are 1024 dimensions
     created_at = Column(DateTime(timezone=True), server_default=func.now())

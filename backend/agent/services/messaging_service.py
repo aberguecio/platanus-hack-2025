@@ -2,6 +2,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from schemas import TelegramUpdate
 from agent.tools import ExecutionContext
+from enums import MessageDirectionEnum
 
 
 class MessagingService:
@@ -43,9 +44,7 @@ class MessagingService:
 
         Returns:
             Dict con la respuesta formateada para la API de Telegram
-        """
-        print(f"[MESSAGING_SERVICE] Sending message to chat_id: {chat_id}")
-        print(f"[MESSAGING_SERVICE] Message preview: {text[:100]}...")
+        """ 
 
         return self.telegram_service.format_response(
             text=text,
@@ -98,12 +97,19 @@ class MessagingService:
                 last_name=message_data["last_name"]
             )
 
+            # 2.5. Obtener o crear conversación para el usuario
+            conversation = self.database_service.get_or_create_conversation(
+                db=db,
+                user_id=user.id,
+                channel_identifier=str(message_data["chat_id"])
+            )
+
             # 3. Guardar mensaje del usuario en la base de datos
             print(f"[MESSAGING_SERVICE] Saving user message to database")
             self.database_service.save_message(
                 db=db,
-                user_id=user.id,
-                role="user",
+                conversation_id=conversation.id,
+                direction=MessageDirectionEnum.USER,
                 content=message_data["text"]
             )
 
@@ -111,14 +117,14 @@ class MessagingService:
             print(f"[MESSAGING_SERVICE] Fetching recent conversation history")
             recent_messages = self.database_service.get_recent_messages(
                 db=db,
-                user_id=user.id,
+                conversation_id=conversation.id,
                 limit=10
             )
             
             # Convertir a formato esperado (más antiguos primero, excluyendo el mensaje actual)
             # Los mensajes vienen ordenados desc (más reciente primero), necesitamos invertir
             conversation_history = [
-                {"role": msg.role, "content": msg.content}
+                {"role": msg.direction.value, "content": msg.content}
                 for msg in reversed(recent_messages[1:])  # Skip el mensaje actual (primero en la lista)
             ] if len(recent_messages) > 1 else []
             
@@ -148,8 +154,8 @@ class MessagingService:
             print(f"[MESSAGING_SERVICE] Saving assistant response to database")
             self.database_service.save_message(
                 db=db,
-                user_id=user.id,
-                role="assistant",
+                conversation_id=conversation.id,
+                direction=MessageDirectionEnum.ASSISTANT,
                 content=final_response
             )
 

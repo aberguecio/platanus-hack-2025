@@ -24,7 +24,7 @@ class Channel(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    type = Column(Enum(ChannelTypeEnum), nullable=False, index=True)
+    type = Column(Enum(ChannelTypeEnum, values_callable=lambda x: [e.value for e in x]), nullable=False, index=True)
     identifier = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

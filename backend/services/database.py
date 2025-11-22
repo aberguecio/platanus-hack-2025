@@ -131,12 +131,15 @@ class DatabaseService:
         identifier: str
     ) -> Channel:
         """Get existing channel or create new one"""
+        # Use enum value for filtering (PostgreSQL native enums need the value string)
+        type_value = type.value if hasattr(type, 'value') else str(type)
         channel = db.query(Channel).filter(
-            Channel.type == type,
+            Channel.type == type_value,
             Channel.identifier == identifier
         ).first()
 
         if not channel:
+            # When creating, use the enum member itself (SQLAlchemy will handle conversion)
             channel = Channel(name=name, type=type, identifier=identifier)
             db.add(channel)
             db.commit()
@@ -236,6 +239,47 @@ class DatabaseService:
             db.refresh(conversation)
         return conversation
 
+    @staticmethod
+    def get_or_create_conversation(
+        db: Session,
+        user_id: int,
+        channel_identifier: str = "telegram",
+        assistant_instructions: str = "You are a helpful assistant for a memories storage bot."
+    ) -> Conversation:
+        """Get existing active conversation or create new one for a user"""
+        # Get or create Telegram channel
+        channel = DatabaseService.get_or_create_channel(
+            db=db,
+            name="Telegram",
+            type=ChannelTypeEnum.TELEGRAM,
+            identifier=channel_identifier
+        )
+        
+        # Get or create default assistant
+        assistant = db.query(AIMemoryAssistant).first()
+        if not assistant:
+            assistant = DatabaseService.create_assistant(
+                db=db,
+                instructions=assistant_instructions
+            )
+        
+        # Get active conversation for this user
+        conversation = db.query(Conversation).filter(
+            Conversation.user_id == user_id,
+            Conversation.channel_id == channel.id,
+            Conversation.status == ConversationStatusEnum.ACTIVE
+        ).first()
+        
+        if not conversation:
+            conversation = DatabaseService.create_conversation(
+                db=db,
+                user_id=user_id,
+                assistant_id=assistant.id,
+                channel_id=channel.id
+            )
+        
+        return conversation
+
     # ========================================================================
     # Message Operations
     # ========================================================================
@@ -251,11 +295,25 @@ class DatabaseService:
         message = Message(
             conversation_id=conversation_id,
             direction=direction,
+            content=content
+        )
+        db.add(message)
+        db.commit()
+        db.refresh(message)
+
+        # Update conversation's updated_at timestamp
+        conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if conversation:
+            conversation.updated_at = datetime.utcnow()
+            db.commit()
+
+        return message
+
     @staticmethod
     def save_message(
         db: Session,
-        user_id: int,
-        role: str,
+        conversation_id: int,
+        direction: MessageDirectionEnum,
         content: str
     ) -> Message:
         """
@@ -263,16 +321,16 @@ class DatabaseService:
         
         Args:
             db: Database session
-            user_id: ID of the user
-            role: Role of the message sender ("user" or "assistant")
+            conversation_id: ID of the conversation
+            direction: Direction of the message (USER or ASSISTANT)
             content: Content of the message
             
         Returns:
             Created Message object
         """
         message = Message(
-            user_id=user_id,
-            role=role,
+            conversation_id=conversation_id,
+            direction=direction,
             content=content
         )
         db.add(message)
@@ -303,27 +361,26 @@ class DatabaseService:
     def get_message(db: Session, message_id: int) -> Optional[Message]:
         """Get a message by ID"""
         return db.query(Message).filter(Message.id == message_id).first()
-        return message
 
     @staticmethod
     def get_recent_messages(
         db: Session,
-        user_id: int,
+        conversation_id: int,
         limit: int = 10
     ) -> List[Message]:
         """
-        Get the most recent messages for a user.
+        Get the most recent messages for a conversation.
         
         Args:
             db: Database session
-            user_id: ID of the user
+            conversation_id: ID of the conversation
             limit: Maximum number of messages to retrieve (default: 10)
             
         Returns:
             List of Message objects ordered by created_at descending (most recent first)
         """
         return db.query(Message).filter(
-            Message.user_id == user_id
+            Message.conversation_id == conversation_id
         ).order_by(
             Message.created_at.desc()
         ).limit(limit).all()
