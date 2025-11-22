@@ -8,11 +8,14 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from database import Base
-from models import Item
+from models import User, Event, Memory, user_events
 
 config = context.config
 
-database_url = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+database_url = os.getenv(
+    "DATABASE_URL",
+    "postgresql://memories_user:memories_pass@localhost:5432/memories_db"
+)
 config.set_main_option("sqlalchemy.url", database_url)
 
 if config.config_file_name is not None:
