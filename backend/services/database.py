@@ -384,3 +384,44 @@ class DatabaseService:
         ).order_by(
             Message.created_at.desc()
         ).limit(limit).all()
+
+    @staticmethod
+    def get_event_by_invite_code(db: Session, invite_code: str) -> Optional[Event]:
+        """Get an event by its invite code"""
+        return db.query(Event).filter(Event.invite_code == invite_code).first()
+
+    @staticmethod
+    def join_event_by_invite_code(db: Session, user: User, invite_code: str) -> Dict[str, Any]:
+        """
+        Join an event using an invite code.
+
+        Returns:
+            Dict with:
+            - success: bool
+            - message: str
+            - event_id: int (if successful)
+            - event_name: str (if successful)
+        """
+        event = DatabaseService.get_event_by_invite_code(db, invite_code)
+
+        if not event:
+            return {"success": False, "message": "Invalid invite code. Event not found."}
+
+        if event in user.events:
+            return {
+                "success": True,
+                "message": f"You're already in event '{event.name}'!",
+                "event_id": event.id,
+                "event_name": event.name,
+                "already_joined": True
+            }
+
+        user.events.append(event)
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"Successfully joined '{event.name}'!",
+            "event_id": event.id,
+            "event_name": event.name
+        }

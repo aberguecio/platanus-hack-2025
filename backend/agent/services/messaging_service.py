@@ -259,3 +259,4 @@ También puedes enviarme fotos directamente 📸"""
             chat_id=chat_id
         )
 
+

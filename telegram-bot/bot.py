@@ -1,5 +1,6 @@
 import os
 import requests
+import re
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -52,15 +53,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command"""
-    await update.message.reply_text(
-        "👋 Welcome to Memories Bot!\n\n"
-        "I can help you store and organize your memories.\n\n"
-        "Try saying:\n"
-        "- 'Create event Birthday Party on 2025-12-25'\n"
-        "- 'List my events'\n"
-        "- 'Add memory to event #1: Had a great time!'"
-    )
+    """
+    Handle /start command.
+    
+    Forwards the command to the backend API.
+    If it's a deep link (e.g. /start evt_123), the backend agent will handle the invite.
+    If it's just /start, the backend agent will say hello.
+    """
+    # Reuse the generic message handler logic
+    await handle_message(update, context)
 
 
 def main():
