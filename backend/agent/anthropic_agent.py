@@ -48,6 +48,24 @@ class AnthropicAgent(LLMAgent):
         has_photo = ctx.has_photo
         photo_context = "\n- USER HAS SENT A PHOTO! They want to save it as a memory." if has_photo else ""
 
+        # Extract conversation history from context
+        conversation_history = ctx.conversation_history or []
+        
+        # Build conversation history section if available
+        history_section = ""
+        if conversation_history:
+            history_text = "\n".join([
+                f"{'Usuario' if msg['role'] == 'user' else 'Asistente'}: {msg['content']}"
+                for msg in conversation_history  # Already in chronological order (oldest first)
+            ])
+            history_section = f"""
+
+Conversación reciente con este usuario:
+{history_text}
+
+Usa este contexto para dar respuestas más naturales y coherentes, recordando lo que se habló anteriormente.
+"""
+
         system_prompt = f"""You are a helpful assistant for a memories storage bot on Telegram.
 Users can create events and store memories (photos and text) in them.
 
@@ -91,7 +109,7 @@ When showing memories with images:
 - You can include the URL in your response so users can view the photo
 - Format: "📸 [View photo](URL)" in markdown
 
-When you use a tool, wait for the result before responding to the user.
+When you use a tool, wait for the result before responding to the user.{history_section}
 """
 
         # Initialize message history for the conversation

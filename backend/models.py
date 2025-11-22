@@ -26,6 +26,19 @@ class User(Base):
     # Relationships
     events = relationship("Event", secondary=user_events, back_populates="users")
     memories = relationship("Memory", back_populates="user")
+    messages = relationship("Message", back_populates="user", order_by="Message.created_at")
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String, nullable=False)  # "user" o "assistant"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="messages")
 
 class Event(Base):
     __tablename__ = "events"

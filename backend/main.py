@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from database import get_db
@@ -9,6 +10,8 @@ from services.embedding import EmbeddingService
 from services.image import ImageService
 from services.search import SearchService
 from schemas import TelegramUpdate
+# Import models to ensure SQLAlchemy recognizes them
+from models import User, Event, Memory, Message
 
 app = FastAPI(title="Memories Bot API", version="1.0.0")
 
