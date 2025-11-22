@@ -2,6 +2,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
+from alembic.autogenerate import render
 import os
 import sys
 
@@ -9,6 +10,9 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from database import Base
 from models import User, Event, Memory, user_events
+
+# Import pgvector for proper type handling
+from pgvector.sqlalchemy import Vector
 
 config = context.config
 
@@ -23,6 +27,29 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+
+def render_item(type_, obj, autogen_context):
+    """Custom renderer for pgvector types"""
+    if type_ == "type" and isinstance(obj, Vector):
+        autogen_context.imports.add("from pgvector.sqlalchemy import Vector")
+        return f"Vector({obj.dim})"
+    return False
+
+
+def process_revision_directives(context, revision, directives):
+    """Hook to modify generated migrations"""
+    if directives:
+        migration_script = directives[0]
+        if migration_script.upgrade_ops:
+            # Add pgvector extension creation at the start of upgrade
+            migration_script.upgrade_ops.ops.insert(
+                0,
+                render.ops.ExecuteSQLOp(
+                    "CREATE EXTENSION IF NOT EXISTS vector"
+                )
+            )
+
+
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -30,6 +57,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_item=render_item,
+        process_revision_directives=process_revision_directives,
     )
 
     with context.begin_transaction():
@@ -45,7 +74,10 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            render_item=render_item,
+            process_revision_directives=process_revision_directives,
         )
 
         with context.begin_transaction():

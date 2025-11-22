@@ -52,12 +52,16 @@ class TelegramUpdate(BaseModel):
 
     This is the main object received from Telegram Bot API webhook.
     Only the most common fields are included here.
+
+    The bot_token field is optional and not part of Telegram's standard.
+    Your bot can include it when sending photos to enable image downloads.
     """
     update_id: int
     message: Optional[TelegramMessage] = None
     edited_message: Optional[TelegramMessage] = None
     channel_post: Optional[TelegramMessage] = None
     edited_channel_post: Optional[TelegramMessage] = None
+    bot_token: Optional[str] = None  # Optional: include when sending photos
 
     class Config:
         json_schema_extra = {

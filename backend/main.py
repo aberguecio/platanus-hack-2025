@@ -11,7 +11,6 @@ app = FastAPI(title="Memories Bot API", version="1.0.0")
 
 # Initialize services
 agent = AnthropicAgent()
-telegram_service = TelegramService()
 s3_service = S3Service()
 
 
@@ -82,7 +81,8 @@ async def telegram_webhook(update: TelegramUpdate, db: Session = Depends(get_db)
             user=user,
             db=db,
             photo=photo,
-            text=text
+            text=text,
+            bot_token=update.bot_token
         )
 
         # Combine agent response with action result
@@ -111,7 +111,8 @@ async def execute_action(
     user: Any,
     db: Session,
     photo: Optional[list] = None,
-    text: Optional[str] = None
+    text: Optional[str] = None,
+    bot_token: Optional[str] = None
 ) -> Dict[str, Any]:
     """Execute the action determined by the agent"""
 
@@ -163,15 +164,23 @@ async def execute_action(
                 largest_photo = max(photo, key=lambda p: p.file_size or 0)
                 file_id = largest_photo.file_id
 
-                try:
-                    # Download from Telegram
-                    image_data = await telegram_service.download_file(file_id)
+                # If bot_token is provided, download and upload to S3
+                # Otherwise, just save the file_id
+                if bot_token:
+                    try:
+                        telegram_service = TelegramService(bot_token)
+                        # Download from Telegram
+                        image_data = await telegram_service.download_file(file_id)
 
-                    # Upload to S3 (or mock)
-                    image_url = await s3_service.upload_image(image_data)
-                except Exception as img_error:
-                    print(f"Error handling image: {img_error}")
-                    # Continue without image if download/upload fails
+                        # Upload to S3 (or mock)
+                        image_url = await s3_service.upload_image(image_data)
+                    except Exception as img_error:
+                        print(f"Error handling image: {img_error}")
+                        # Fallback to file_id if download/upload fails
+                        image_url = file_id
+                else:
+                    # No bot_token provided, just save the file_id
+                    image_url = file_id
 
             # Save memory
             memory = DatabaseService.add_memory(
