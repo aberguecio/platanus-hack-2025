@@ -251,6 +251,28 @@ class DatabaseService:
         message = Message(
             conversation_id=conversation_id,
             direction=direction,
+    @staticmethod
+    def save_message(
+        db: Session,
+        user_id: int,
+        role: str,
+        content: str
+    ) -> Message:
+        """
+        Save a message to the database.
+        
+        Args:
+            db: Database session
+            user_id: ID of the user
+            role: Role of the message sender ("user" or "assistant")
+            content: Content of the message
+            
+        Returns:
+            Created Message object
+        """
+        message = Message(
+            user_id=user_id,
+            role=role,
             content=content
         )
         db.add(message)
@@ -281,3 +303,27 @@ class DatabaseService:
     def get_message(db: Session, message_id: int) -> Optional[Message]:
         """Get a message by ID"""
         return db.query(Message).filter(Message.id == message_id).first()
+        return message
+
+    @staticmethod
+    def get_recent_messages(
+        db: Session,
+        user_id: int,
+        limit: int = 10
+    ) -> List[Message]:
+        """
+        Get the most recent messages for a user.
+        
+        Args:
+            db: Database session
+            user_id: ID of the user
+            limit: Maximum number of messages to retrieve (default: 10)
+            
+        Returns:
+            List of Message objects ordered by created_at descending (most recent first)
+        """
+        return db.query(Message).filter(
+            Message.user_id == user_id
+        ).order_by(
+            Message.created_at.desc()
+        ).limit(limit).all()

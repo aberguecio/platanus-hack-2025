@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from dataclasses import dataclass, field
 
@@ -18,6 +18,9 @@ class ExecutionContext:
 
     # Request metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    # Conversation history (list of messages with role and content)
+    conversation_history: Optional[List[Dict[str, str]]] = None
 
     # Convenient properties to access common metadata
     @property
