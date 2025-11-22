@@ -71,13 +71,40 @@ async def tool_executor(tool_name: str, tool_input: Dict[str, Any], context: Dic
             event_id = tool_input.get("event_id")
             memory_text = tool_input.get("text")
 
-            # For now, handle image from context if available
-            image_url = context.get("photo_file_id")
+            # Handle image from context if available
+            photo_file_id = context.get("photo_file_id")
+            image_url = None
 
             print(f"[TOOL] add_memory - event_id: {event_id}")
             print(f"[TOOL] add_memory - memory_text: {memory_text}")
             print(f"[TOOL] add_memory - context.has_photo: {context.get('has_photo')}")
-            print(f"[TOOL] add_memory - image_url from context: {image_url}")
+            print(f"[TOOL] add_memory - photo_file_id from context: {photo_file_id}")
+
+            # If there's a photo, download from Telegram and upload to S3
+            if photo_file_id:
+                import os
+                bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+
+                if not bot_token:
+                    print("[TOOL] ERROR: TELEGRAM_BOT_TOKEN not found in environment")
+                    image_url = photo_file_id  # Fallback to file_id
+                else:
+                    try:
+                        print(f"[TOOL] Downloading photo from Telegram...")
+                        telegram_service = TelegramService(bot_token)
+                        image_data = await telegram_service.download_file(photo_file_id)
+                        print(f"[TOOL] Photo downloaded, size: {len(image_data)} bytes")
+
+                        # Upload to S3
+                        print(f"[TOOL] Uploading to S3...")
+                        image_url = await s3_service.upload_image(image_data, f"memory_{event_id}_{photo_file_id[:20]}.jpg")
+                        print(f"[TOOL] Image uploaded to S3: {image_url}")
+                    except Exception as img_error:
+                        print(f"[TOOL] Error handling image: {img_error}")
+                        import traceback
+                        traceback.print_exc()
+                        # Fallback to file_id if download/upload fails
+                        image_url = photo_file_id
 
             memory = DatabaseService.add_memory(
                 db=db,
@@ -90,7 +117,10 @@ async def tool_executor(tool_name: str, tool_input: Dict[str, Any], context: Dic
             if memory:
                 result_msg = f"Memory added to event #{event_id}!"
                 if image_url:
-                    result_msg += f" (with photo: {image_url[:50]}...)"
+                    if image_url.startswith('http'):
+                        result_msg += f" (photo uploaded to S3)"
+                    else:
+                        result_msg += f" (photo saved as Telegram file_id)"
                 return {"success": True, "message": result_msg}
             else:
                 return {"success": False, "message": "Could not add memory. Make sure you're in this event."}
@@ -119,17 +149,26 @@ async def tool_executor(tool_name: str, tool_input: Dict[str, Any], context: Dic
             if not memories:
                 return {"success": True, "message": f"No memories in event #{event_id} yet.", "memories": []}
 
-            memories_list = [
-                {
+            memories_list = []
+            for m in memories:
+                # Generate presigned URL if image is stored in S3
+                image_url = m.image_url
+                print(f"[TOOL] list_memories - original image_url: {image_url}")
+
+                if image_url and image_url.startswith('s3://'):
+                    presigned_url = s3_service.generate_presigned_url(image_url, expiration=3600)
+                    print(f"[TOOL] list_memories - presigned URL generated: {presigned_url[:100]}...")
+                    image_url = presigned_url
+
+                memories_list.append({
                     "id": m.id,
                     "text": m.text or "(photo only)",
                     "user": m.user.first_name,
-                    "image_url": m.image_url,
+                    "image_url": image_url,
                     "has_image": bool(m.image_url),
                     "created_at": m.created_at.isoformat() if m.created_at else None
-                }
-                for m in memories
-            ]
+                })
+
             return {
                 "success": True,
                 "message": "Memories retrieved",

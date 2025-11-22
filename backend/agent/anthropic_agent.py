@@ -158,6 +158,11 @@ When user asks questions (WITHOUT photo) like:
 - "How to invite someone?" → use get_faq with topic "invite_user"
 - "Help" → use get_faq with topic "general"
 
+When showing memories with images:
+- The image_url field will contain a presigned URL that's valid for 1 hour
+- You can include the URL in your response so users can view the photo
+- Format: "📸 [View photo](URL)" in markdown
+
 When you use a tool, wait for the result before responding to the user.
 """
 
