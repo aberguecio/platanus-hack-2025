@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any, Optional, Callable
 from anthropic import Anthropic
 from .base import LLMAgent
+from .tools import get_registry
 
 class AnthropicAgent(LLMAgent):
     """
@@ -41,80 +42,9 @@ class AnthropicAgent(LLMAgent):
 
         print(f"\n[AGENT] Processing message: {user_message}")
 
-        # Define available tools/actions
-        tools = [
-            {
-                "name": "create_event",
-                "description": "Create a new event for storing memories",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "Name of the event"},
-                        "description": {"type": "string", "description": "Description of the event"},
-                        "event_date": {"type": "string", "description": "Date of the event (ISO format)"},
-                    },
-                    "required": ["name"]
-                }
-            },
-            {
-                "name": "join_event",
-                "description": "Add the user to an existing event",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "event_id": {"type": "integer", "description": "ID of the event to join"},
-                    },
-                    "required": ["event_id"]
-                }
-            },
-            {
-                "name": "add_memory",
-                "description": "Add a memory (text and/or image) to an event",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "event_id": {"type": "integer", "description": "ID of the event"},
-                        "text": {"type": "string", "description": "Text content of the memory"},
-                        "has_image": {"type": "boolean", "description": "Whether this memory includes an image"},
-                    },
-                    "required": ["event_id"]
-                }
-            },
-            {
-                "name": "list_events",
-                "description": "List all events the user is part of",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {},
-                }
-            },
-            {
-                "name": "list_memories",
-                "description": "List memories from a specific event",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "event_id": {"type": "integer", "description": "ID of the event"},
-                    },
-                    "required": ["event_id"]
-                }
-            },
-            {
-                "name": "get_faq",
-                "description": "Get help and instructions about how to use the bot features",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "topic": {
-                            "type": "string",
-                            "description": "The help topic: 'upload_image', 'invite_user', 'create_event', 'add_memory', 'general'",
-                            "enum": ["upload_image", "invite_user", "create_event", "add_memory", "general"]
-                        }
-                    },
-                    "required": ["topic"]
-                }
-            }
-        ]
+        # Get tools dynamically from registry
+        registry = get_registry()
+        tools = registry.get_schemas()
 
         # Build system prompt with context
         has_photo = context.get('has_photo', False)
