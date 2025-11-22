@@ -15,7 +15,8 @@ class AnthropicAgent(LLMAgent):
             raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
         self.client = Anthropic(api_key=self.api_key)
-        self.model = "claude-3-5-sonnet-20241022"
+        # Using Claude 3 Haiku - fastest and cheapest model
+        self.model = "claude-3-haiku-20240307"
 
     async def process_message(
         self,
