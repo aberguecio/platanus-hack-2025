@@ -2,6 +2,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from schemas import TelegramUpdate
 from agent.tools import ExecutionContext
+from enums import MessageDirectionEnum
 
 
 class MessagingService:
@@ -43,9 +44,7 @@ class MessagingService:
 
         Returns:
             Dict con la respuesta formateada para la API de Telegram
-        """
-        print(f"[MESSAGING_SERVICE] Sending message to chat_id: {chat_id}")
-        print(f"[MESSAGING_SERVICE] Message preview: {text[:100]}...")
+        """ 
 
         return self.telegram_service.format_response(
             text=text,
@@ -98,15 +97,51 @@ class MessagingService:
                 last_name=message_data["last_name"]
             )
 
-            # 3. Preparar contexto de ejecución para el agente
-            execution_context = self._build_execution_context(message_data, user, db)
+            # 2.5. Obtener o crear conversación para el usuario
+            conversation = self.database_service.get_or_create_conversation(
+                db=db,
+                user_id=user.id,
+                channel_identifier=str(message_data["chat_id"])
+            )
+
+            # 3. Guardar mensaje del usuario en la base de datos
+            print(f"[MESSAGING_SERVICE] Saving user message to database")
+            self.database_service.save_message(
+                db=db,
+                conversation_id=conversation.id,
+                direction=MessageDirectionEnum.USER,
+                content=message_data["text"]
+            )
+
+            # 4. Obtener historial reciente de conversación
+            print(f"[MESSAGING_SERVICE] Fetching recent conversation history")
+            recent_messages = self.database_service.get_recent_messages(
+                db=db,
+                conversation_id=conversation.id,
+                limit=10
+            )
+            
+            # Convertir a formato esperado (más antiguos primero, excluyendo el mensaje actual)
+            # Los mensajes vienen ordenados desc (más reciente primero), necesitamos invertir
+            conversation_history = [
+                {"role": msg.direction.value, "content": msg.content}
+                for msg in reversed(recent_messages[1:])  # Skip el mensaje actual (primero en la lista)
+            ] if len(recent_messages) > 1 else []
+            
+            print(f"[MESSAGING_SERVICE] Loaded {len(conversation_history)} previous messages")
+
+            # 5. Preparar contexto de ejecución para el agente
+            execution_context = self._build_execution_context(
+                message_data, user, db, conversation_history
+            )
 
             print(f"[MESSAGING_SERVICE] ExecutionContext prepared:")
             print(f"  - User DB ID: {user.id}")
             print(f"  - Has photo: {execution_context.has_photo}")
             print(f"  - Text length: {len(message_data['text'])}")
+            print(f"  - Conversation history size: {len(conversation_history)}")
 
-            # 4. Procesar mensaje con el agente de IA
+            # 6. Procesar mensaje con el agente de IA
             print(f"[MESSAGING_SERVICE] Calling AI agent...")
             final_response = await self.agent.process_message(
                 message_data["text"],
@@ -115,7 +150,16 @@ class MessagingService:
 
             print(f"[MESSAGING_SERVICE] Agent response received: {final_response[:100]}...")
 
-            # 5. Formatear y retornar respuesta
+            # 7. Guardar respuesta del bot en la base de datos
+            print(f"[MESSAGING_SERVICE] Saving assistant response to database")
+            self.database_service.save_message(
+                db=db,
+                conversation_id=conversation.id,
+                direction=MessageDirectionEnum.ASSISTANT,
+                content=final_response
+            )
+
+            # 8. Formatear y retornar respuesta
             return await self.send_message(
                 text=final_response,
                 chat_id=message_data["chat_id"]
@@ -135,7 +179,8 @@ class MessagingService:
         self,
         message_data: Dict[str, Any],
         user: Any,
-        db: Session
+        db: Session,
+        conversation_history: list = None
     ) -> ExecutionContext:
         """
         Construye el ExecutionContext necesario para el agente de IA.
@@ -144,6 +189,7 @@ class MessagingService:
             message_data: Datos extraídos del mensaje de Telegram
             user: Objeto usuario de la base de datos
             db: Sesión de base de datos
+            conversation_history: Historial de conversación (opcional)
 
         Returns:
             ExecutionContext con todos los servicios y metadata
@@ -162,7 +208,8 @@ class MessagingService:
             user=user,
             s3_service=self.s3_service,
             telegram_service=self.telegram_service,
-            metadata=metadata
+            metadata=metadata,
+            conversation_history=conversation_history or []
         )
 
     async def send_error_message(
