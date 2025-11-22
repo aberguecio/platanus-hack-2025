@@ -113,6 +113,28 @@ class AnthropicAgent(LLMAgent):
                     },
                     "required": ["topic"]
                 }
+            # },
+            # {
+            #     "name": "search_memories",
+            #     "description": "Search memories by semantic similarity across text and image descriptions. Use this when user wants to find specific memories by content, topic, or theme.",
+            #     "input_schema": {
+            #         "type": "object",
+            #         "properties": {
+            #             "query": {
+            #                 "type": "string",
+            #                 "description": "Search query describing what to look for (e.g., 'beach photos', 'team dinner', 'presentations')"
+            #             },
+            #             "event_id": {
+            #                 "type": "integer",
+            #                 "description": "Optional: limit search to specific event. If not provided, searches across all user's events"
+            #             },
+            #             "top_k": {
+            #                 "type": "integer",
+            #                 "description": "Maximum number of results to return (default 5)"
+            #             }
+            #         },
+            #         "required": ["query"]
+            #     }
             }
         ]
 

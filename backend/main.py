@@ -2,17 +2,36 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional
 from datetime import datetime
+import os
+import logging
 from database import get_db
 from agent import AnthropicAgent
 from services import DatabaseService, TelegramService, S3Service
+from services.embedding import EmbeddingService
+from services.image import ImageService
+from services.search import SearchService
 from schemas import TelegramUpdate
 from models import User
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Memories Bot API", version="1.0.0")
 
 # Initialize services
 agent = AnthropicAgent()
 s3_service = S3Service()
+
+# Initialize Telegram service for downloading files
+telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+if telegram_bot_token:
+    telegram_service = TelegramService(telegram_bot_token)
+    image_service = ImageService(telegram_service=telegram_service, s3_service=s3_service)
+else:
+    telegram_service = None
+    image_service = None
+    logger.warning("TELEGRAM_BOT_TOKEN not set - image processing will be limited")
 
 
 # Tool executor function that the agent will call
@@ -114,16 +133,56 @@ async def tool_executor(tool_name: str, tool_input: Dict[str, Any], context: Dic
                 image_url=image_url
             )
 
-            if memory:
+            if not memory:
+                return {"success": False, "message": "Could not add memory. Make sure you're in this event."}
+
+            # Generate embedding for the memory
+            try:
+                embedding_text_parts = []
+
+                # Add text content
+                if memory_text:
+                    embedding_text_parts.append(memory_text)
+
+                # Generate image description if photo present
+                if image_url and image_service:
+                    try:
+                        logger.info(f"Generating description for image: {image_url}")
+                        description, _ = await image_service.process_telegram_photo(
+                            file_id=image_url,
+                            store_in_s3=False  # Optional: set to True if you want S3 storage
+                        )
+                        embedding_text_parts.append(description)
+                        logger.info(f"Generated image description: {description[:100]}...")
+                    except Exception as e:
+                        logger.error(f"Failed to generate image description: {e}")
+                        # Continue without description rather than failing
+
+                # Generate embedding if we have any text
+                if embedding_text_parts:
+                    combined_text = " ".join(embedding_text_parts)
+                    logger.info(f"Generating embedding for memory #{memory.id}")
+
+                    embedding = EmbeddingService.embed_text(
+                        combined_text,
+                        input_type="document"
+                    )
+
+                    # Store embedding in database
+                    memory.embedding = embedding
+                    db.commit()
+                    logger.info(f"Stored embedding for memory #{memory.id}")
+
                 result_msg = f"Memory added to event #{event_id}!"
                 if image_url:
-                    if image_url.startswith('http'):
-                        result_msg += f" (photo uploaded to S3)"
-                    else:
-                        result_msg += f" (photo saved as Telegram file_id)"
-                return {"success": True, "message": result_msg}
-            else:
-                return {"success": False, "message": "Could not add memory. Make sure you're in this event."}
+                    result_msg += f" (with photo)"
+                return {"success": True, "message": result_msg, "memory_id": memory.id}
+
+            except Exception as e:
+                logger.error(f"Failed to generate embedding: {e}")
+                # Memory is saved, just without embedding
+                result_msg = f"Memory added to event #{event_id} (without semantic search support)"
+                return {"success": True, "message": result_msg, "memory_id": memory.id, "warning": "embedding_failed"}
 
         elif tool_name == "list_events":
             events = DatabaseService.list_user_events(db, user)
@@ -255,6 +314,75 @@ async def tool_executor(tool_name: str, tool_input: Dict[str, Any], context: Dic
                 "faq": faq,
                 "topic": topic
             }
+
+        elif tool_name == "search_memories":
+            query = tool_input.get("query")
+            event_id = tool_input.get("event_id")
+            top_k = tool_input.get("top_k", 5)
+
+            try:
+                logger.info(f"Searching memories: query='{query}', event_id={event_id}, top_k={top_k}")
+
+                # Search based on whether event_id is specified
+                if event_id:
+                    # Search within specific event
+                    results = SearchService.search_memories(
+                        db=db,
+                        query=query,
+                        top_k=top_k,
+                        threshold=0.0,  # Return all results, let ranking do its job
+                        event_id=event_id,
+                        user_id=None  # Don't filter by user within event
+                    )
+                else:
+                    # Search across all user's events
+                    results = SearchService.search_across_user_events(
+                        db=db,
+                        user_id=user.id,
+                        query=query,
+                        top_k=top_k,
+                        threshold=0.0
+                    )
+
+                if not results:
+                    return {
+                        "success": True,
+                        "message": "No matching memories found.",
+                        "results": [],
+                        "count": 0
+                    }
+
+                # Format results for Claude
+                results_list = []
+                for result in results:
+                    # Get event name
+                    event = DatabaseService.get_event(db, result.event_id)
+                    event_name = event.name if event else f"Event #{result.event_id}"
+
+                    results_list.append({
+                        "memory_id": result.id,
+                        "event_id": result.event_id,
+                        "event_name": event_name,
+                        "text": result.text or "(photo only)",
+                        "has_image": bool(result.image_url),
+                        "similarity_percentage": result.similarity_score * 100,
+                        "created_at": result.created_at.isoformat() if result.created_at else None
+                    })
+
+                return {
+                    "success": True,
+                    "message": f"Found {len(results)} matching memories",
+                    "results": results_list,
+                    "count": len(results),
+                    "query": query
+                }
+
+            except Exception as e:
+                logger.error(f"Search failed: {e}")
+                return {
+                    "success": False,
+                    "message": f"Search failed: {str(e)}"
+                }
 
         else:
             return {"success": False, "message": f"Unknown tool: {tool_name}"}

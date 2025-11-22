@@ -48,7 +48,7 @@ class Memory(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     text = Column(Text, nullable=True)
     image_url = Column(String, nullable=True)
-    embedding = Column(Vector(1536), nullable=True)  # OpenAI/Anthropic embeddings are 1536 dimensions
+    embedding = Column(Vector(1024), nullable=True)  # Voyage AI voyage-2 embeddings are 1024 dimensions
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships

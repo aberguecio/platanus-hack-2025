@@ -31,3 +31,6 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Python
+.mypy_cache/
