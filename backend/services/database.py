@@ -1,7 +1,11 @@
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
-from models import User, Event, Memory, Message, user_events
+from models import (
+    User, Event, Memory, user_events,
+    Channel, AIMemoryAssistant, Conversation, Message,
+    MediaTypeEnum, ChannelTypeEnum, ConversationStatusEnum, MessageDirectionEnum
+)
 
 class DatabaseService:
     """Service for database operations"""
@@ -76,7 +80,10 @@ class DatabaseService:
         user: User,
         event_id: int,
         text: Optional[str] = None,
-        image_url: Optional[str] = None
+        s3_url: Optional[str] = None,
+        media_type: Optional[MediaTypeEnum] = None,
+        memory_metadata: Optional[Dict[str, Any]] = None,
+        message_id: Optional[int] = None
     ) -> Optional[Memory]:
         """Add a memory to an event"""
         event = db.query(Event).filter(Event.id == event_id).first()
@@ -87,7 +94,10 @@ class DatabaseService:
             event_id=event_id,
             user_id=user.id,
             text=text,
-            image_url=image_url
+            s3_url=s3_url,
+            media_type=media_type,
+            memory_metadata=memory_metadata,
+            message_id=message_id
         )
         db.add(memory)
         db.commit()
@@ -109,6 +119,138 @@ class DatabaseService:
         """Get an event by ID"""
         return db.query(Event).filter(Event.id == event_id).first()
 
+    # ========================================================================
+    # Channel Operations
+    # ========================================================================
+
+    @staticmethod
+    def get_or_create_channel(
+        db: Session,
+        name: str,
+        type: ChannelTypeEnum,
+        identifier: str
+    ) -> Channel:
+        """Get existing channel or create new one"""
+        channel = db.query(Channel).filter(
+            Channel.type == type,
+            Channel.identifier == identifier
+        ).first()
+
+        if not channel:
+            channel = Channel(name=name, type=type, identifier=identifier)
+            db.add(channel)
+            db.commit()
+            db.refresh(channel)
+
+        return channel
+
+    @staticmethod
+    def get_channel(db: Session, channel_id: int) -> Optional[Channel]:
+        """Get a channel by ID"""
+        return db.query(Channel).filter(Channel.id == channel_id).first()
+
+    # ========================================================================
+    # AIMemoryAssistant Operations
+    # ========================================================================
+
+    @staticmethod
+    def create_assistant(
+        db: Session,
+        instructions: str,
+        personality: Optional[str] = None
+    ) -> AIMemoryAssistant:
+        """Create a new AI assistant"""
+        assistant = AIMemoryAssistant(
+            instructions=instructions,
+            personality=personality
+        )
+        db.add(assistant)
+        db.commit()
+        db.refresh(assistant)
+        return assistant
+
+    @staticmethod
+    def get_assistant(db: Session, assistant_id: int) -> Optional[AIMemoryAssistant]:
+        """Get an assistant by ID"""
+        return db.query(AIMemoryAssistant).filter(AIMemoryAssistant.id == assistant_id).first()
+
+    @staticmethod
+    def list_assistants(db: Session) -> List[AIMemoryAssistant]:
+        """List all assistants"""
+        return db.query(AIMemoryAssistant).all()
+
+    # ========================================================================
+    # Conversation Operations
+    # ========================================================================
+
+    @staticmethod
+    def create_conversation(
+        db: Session,
+        user_id: int,
+        assistant_id: int,
+        channel_id: int,
+        title: Optional[str] = None,
+        status: ConversationStatusEnum = ConversationStatusEnum.ACTIVE
+    ) -> Conversation:
+        """Create a new conversation"""
+        conversation = Conversation(
+            user_id=user_id,
+            assistant_id=assistant_id,
+            channel_id=channel_id,
+            title=title,
+            status=status
+        )
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
+        return conversation
+
+    @staticmethod
+    def get_conversation(db: Session, conversation_id: int) -> Optional[Conversation]:
+        """Get a conversation by ID"""
+        return db.query(Conversation).filter(Conversation.id == conversation_id).first()
+
+    @staticmethod
+    def list_user_conversations(
+        db: Session,
+        user_id: int,
+        status: Optional[ConversationStatusEnum] = None
+    ) -> List[Conversation]:
+        """List conversations for a user, optionally filtered by status"""
+        query = db.query(Conversation).filter(Conversation.user_id == user_id)
+        if status:
+            query = query.filter(Conversation.status == status)
+        return query.order_by(Conversation.updated_at.desc()).all()
+
+    @staticmethod
+    def update_conversation_status(
+        db: Session,
+        conversation_id: int,
+        status: ConversationStatusEnum
+    ) -> Optional[Conversation]:
+        """Update conversation status"""
+        conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if conversation:
+            conversation.status = status
+            db.commit()
+            db.refresh(conversation)
+        return conversation
+
+    # ========================================================================
+    # Message Operations
+    # ========================================================================
+
+    @staticmethod
+    def add_message(
+        db: Session,
+        conversation_id: int,
+        direction: MessageDirectionEnum,
+        content: str
+    ) -> Message:
+        """Add a message to a conversation"""
+        message = Message(
+            conversation_id=conversation_id,
+            direction=direction,
     @staticmethod
     def save_message(
         db: Session,
@@ -136,6 +278,31 @@ class DatabaseService:
         db.add(message)
         db.commit()
         db.refresh(message)
+
+        # Update conversation's updated_at timestamp
+        conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if conversation:
+            conversation.updated_at = datetime.utcnow()
+            db.commit()
+
+        return message
+
+    @staticmethod
+    def list_conversation_messages(
+        db: Session,
+        conversation_id: int,
+        limit: Optional[int] = None
+    ) -> List[Message]:
+        """List messages in a conversation"""
+        query = db.query(Message).filter(Message.conversation_id == conversation_id).order_by(Message.created_at)
+        if limit:
+            query = query.limit(limit)
+        return query.all()
+
+    @staticmethod
+    def get_message(db: Session, message_id: int) -> Optional[Message]:
+        """Get a message by ID"""
+        return db.query(Message).filter(Message.id == message_id).first()
         return message
 
     @staticmethod

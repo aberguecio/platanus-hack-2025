@@ -9,7 +9,10 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from database import Base
-from models import User, Event, Memory, user_events
+from models import (
+    User, Event, Memory, user_events,
+    Channel, AIMemoryAssistant, Conversation, Message
+)
 
 # Import pgvector for proper type handling
 from pgvector.sqlalchemy import Vector
