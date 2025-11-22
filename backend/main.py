@@ -9,6 +9,7 @@ from services.embedding import EmbeddingService
 from services.image import ImageService
 from services.search import SearchService
 from schemas import TelegramUpdate
+import os
 
 app = FastAPI(title="Memories Bot API", version="1.0.0")
 
