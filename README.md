@@ -173,13 +173,21 @@ Interactive API documentation (Swagger UI) - **Available in development**
 ### GET /redoc
 Alternative API documentation (ReDoc) - **Available in development**
 
-## Telegram Bot Setup
+## Telegram Bot
 
-**Note:** Your bot calls this API, not the other way around. The API doesn't call Telegram directly.
+The Telegram bot is included in the Docker Compose setup and will start automatically.
 
-1. Create bot with @BotFather
-2. Get bot token
-3. Configure your bot to POST updates to your webhook endpoint
+**Setup:**
+1. Create bot with [@BotFather](https://t.me/botfather) on Telegram
+2. Get bot token with `/newbot`
+3. Add `TELEGRAM_BOT_TOKEN` to your `.env` file
+4. Bot will start automatically with `docker compose up`
+
+**How it works:**
+- Bot receives messages from users
+- Forwards raw Telegram updates to API at `/webhook`
+- API processes with Claude and responds
+- Bot sends response back to user
 
 ## Database Migrations
 

@@ -34,5 +34,19 @@ services:
       db:
         condition: service_healthy
 
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: telegram_bot_local
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      API_URL: http://backend:8000/webhook
+    volumes:
+      - ./telegram-bot:/app
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   postgres_data_local:
