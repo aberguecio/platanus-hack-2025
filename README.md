@@ -1,66 +1,47 @@
-# Full Stack Application
+# Memories Bot API
 
-Stack completo con Next.js (frontend), FastAPI (backend) y SQLite (base de datos) usando Docker Compose.
+Telegram bot for storing and organizing memories (photos and text) using AI agent-based architecture.
 
-## Stack Tecnológico
+## Stack
 
-- **Frontend**: Next.js 14 con TypeScript
-- **Backend**: FastAPI con Python
-- **Base de datos**: SQLite
-- **Migraciones**: Alembic
-- **Containerización**: Docker & Docker Compose
+- **Backend**: FastAPI with Python
+- **Database**: PostgreSQL with pgvector extension
+- **Agent**: Anthropic Claude (via tool calling)
+- **Storage**: AWS S3 (optional, has placeholder mode)
+- **Containerization**: Docker & Docker Compose
 
-## Estructura del Proyecto
+## Architecture
 
 ```
-ph2/
-├── backend/
-│   ├── alembic/              # Migraciones de base de datos
-│   │   ├── versions/         # Archivos de migración
-│   │   ├── env.py           # Configuración de Alembic
-│   │   └── script.py.mako   # Template para migraciones
-│   ├── main.py              # Aplicación FastAPI
-│   ├── models.py            # Modelos SQLAlchemy
-│   ├── schemas.py           # Schemas Pydantic
-│   ├── database.py          # Configuración de base de datos
-│   ├── requirements.txt     # Dependencias Python
-│   ├── Dockerfile
-│   ├── alembic.ini          # Configuración Alembic
-│   └── migrate.sh           # Script de migración
-├── frontend/
-│   ├── app/
-│   │   ├── layout.tsx       # Layout principal
-│   │   └── page.tsx         # Página principal
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── next.config.js
-│   └── Dockerfile
-└── docker-compose.yml
+Telegram Bot → /webhook (raw JSON) → AI Agent → Decides Action → Executes → Responds to user
 ```
 
-## Requisitos Previos
+The API receives raw Telegram updates, processes them with an AI agent (Claude), which decides what action to take, executes it, and responds back to the user.
 
-- Docker
-- Docker Compose
+### Key Features
 
-## Instalación y Ejecución
+- **Agentic**: No traditional REST CRUD endpoints - everything goes through the AI agent
+- **Conversational**: Users interact naturally, agent understands intent
+- **Event-based**: Memories are organized into events
+- **Multi-user**: Events can have multiple participants
+- **Image support**: Stores photos in S3 (or mock storage)
+- **Vector-ready**: Database supports embeddings (not yet implemented)
 
-Hay dos configuraciones disponibles:
+## Database Schema
 
-### Desarrollo Local
+### Users
+- `telegram_id` (unique)
+- `username`, `first_name`, `last_name`
+- Many-to-many relationship with Events
 
-Para desarrollo local con puertos expuestos:
+### Events
+- `name`, `description`, `event_date`
+- Can have multiple users and memories
 
-```bash
-# Levantar los servicios
-docker compose -f docker-compose.local.yml up -d
-
-# Ver logs
-docker compose -f docker-compose.local.yml logs -f
-
-# Detener
-docker compose -f docker-compose.local.yml down
-```
+### Memories
+- `event_id`, `user_id`
+- `text`, `image_url`
+- `embedding` (vector, for future semantic search)
 
 **Acceso:**
 
@@ -68,23 +49,14 @@ docker compose -f docker-compose.local.yml down
 - **Backend API**: <http://localhost:8000>
 - **API Docs (Swagger)**: <http://localhost:8000/docs>
 - **API Redoc**: <http://localhost:8000/redoc>
+## Setup
 
-### Producción con Traefik
+### 1. Environment Variables
 
-Para producción usando Traefik como reverse proxy:
+Copy `.env.example` to `.env` and fill in:
 
 ```bash
-# Asegurarse de que la red webapp existe
-docker network create webapp
-
-# Levantar los servicios
-docker compose up -d
-
-# Ver logs
-docker compose logs -f
-
-# Detener
-docker compose down
+cp .env.example .env
 ```
 
 **Acceso (requiere Traefik configurado):**
@@ -99,203 +71,215 @@ docker compose down
 - Backend accesible en `/api` (el middleware stripprefix quita `/api` antes de enviar al backend)
 - Ambos servicios en la red `webapp` compartida con Traefik
 - Certificados SSL automáticos vía Traefik
+**Important:** The `.env` file includes `COMPOSE_FILE=docker-compose.local.yml` which makes Docker Compose use the local development file by default. This means you can run `docker compose up` instead of `docker compose -f docker-compose.local.yml up`.
 
-## Migraciones de Base de Datos
+Required:
+- `ANTHROPIC_API_KEY` - Get from https://console.anthropic.com/
 
-### Crear una nueva migración
+Optional:
+- `AWS_S3_BUCKET` - Leave empty to use mock storage
+- `COMPOSE_FILE` - Set to `docker-compose.local.yml` for local dev (already in .env.example)
 
-Cuando modifiques los modelos en [backend/models.py](backend/models.py), necesitas crear una migración:
-
-```bash
-# Entrar al contenedor del backend
-docker-compose exec backend bash
-
-# Crear una migración automática
-alembic revision --autogenerate -m "Descripción del cambio"
-
-# Salir del contenedor
-exit
-```
-
-### Aplicar migraciones
+### 2. Local Development
 
 ```bash
-# Entrar al contenedor del backend
-docker-compose exec backend bash
-
-# Aplicar todas las migraciones pendientes
-alembic upgrade head
-
-# O usar el script incluido
-bash migrate.sh
-
-# Salir del contenedor
-exit
-```
-
-### Ver historial de migraciones
-
-```bash
-docker-compose exec backend alembic history
-```
-
-### Revertir migración
-
-```bash
-docker-compose exec backend alembic downgrade -1
-```
-
-## Ejemplo: Agregar un nuevo campo
-
-1. Editar [backend/models.py](backend/models.py):
-
-```python
-class Item(Base):
-    __tablename__ = "items"
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
-    description = Column(String, nullable=True)
-    completed = Column(Boolean, default=False)
-    priority = Column(String, default="medium")  # NUEVO CAMPO
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-```
-
-2. Crear la migración:
-
-```bash
-docker-compose exec backend alembic revision --autogenerate -m "add priority field"
-```
-
-3. Aplicar la migración:
-
-```bash
-docker-compose exec backend alembic upgrade head
-```
-
-## Comandos Útiles
-
-### Ver logs
-
-```bash
-# Todos los servicios
-docker-compose logs -f
-
-# Solo backend
-docker-compose logs -f backend
-
-# Solo frontend
-docker-compose logs -f frontend
+# Start services (uses docker-compose.local.yml via .env)
+docker compose up
 
 ```
 
-### Reiniciar servicios
-
+### Migration
 ```bash
-# Reiniciar todos los servicios
-docker-compose restart
+# Create initial migration
+docker compose exec backend alembic revision --autogenerate -m "initial schema"
 
-# Reiniciar solo el backend
-docker-compose restart backend
+# Apply migrations
+docker compose exec backend alembic upgrade head
 ```
 
-### Detener servicios
+**Access:**
+- API: http://localhost:8000
+- **API Docs (Swagger)**: http://localhost:8000/docs
+- **API Docs (ReDoc)**: http://localhost:8000/redoc
+- Health check: http://localhost:8000/health
+- Database: localhost:5432
+
+### 3. Production Deployment
 
 ```bash
-docker-compose down
+# Ensure webapp network exists
+docker network create webapp
+
+# Start services (with Traefik)
+docker compose up -d
+
+# Create and apply migrations
+docker compose exec backend alembic revision --autogenerate -m "initial schema"
+docker compose exec backend alembic upgrade head
 ```
 
-### Detener y eliminar volúmenes (borra la base de datos)
+**Access:**
+- API: https://ph.berguecio.cl
+- Webhook: https://ph.berguecio.cl/webhook
 
-```bash
-docker-compose down -v
+## Agent Actions
+
+The AI agent can decide to perform these actions:
+
+### create_event
+Create a new event for storing memories.
+```
+User: "Create event Birthday Party on Dec 25"
 ```
 
-### Reconstruir imágenes
+### join_event
+Add user to an existing event.
+```
+User: "Join event #3"
+```
 
-```bash
-docker-compose up -d --build
+### add_memory
+Add a memory (text and/or photo) to an event.
+```
+User: *sends photo* "Here's from the party! #2"
+```
+
+### list_events
+Show all events the user is part of.
+```
+User: "What events am I in?"
+```
+
+### list_memories
+Show all memories from an event.
+```
+User: "Show memories from event #2"
 ```
 
 ## API Endpoints
 
-### Items
+### POST /webhook
+Main endpoint that receives Telegram updates from your bot.
 
-- `GET /` - Mensaje de bienvenida
-- `GET /health` - Health check
-- `GET /items/` - Listar todos los items
-- `GET /items/{item_id}` - Obtener un item específico
-- `POST /items/` - Crear un nuevo item
-- `PUT /items/{item_id}` - Actualizar un item
-- `DELETE /items/{item_id}` - Eliminar un item
+**Flow:**
+1. Your Telegram bot receives a message from a user
+2. Bot makes POST request to this endpoint with the update
+3. API processes with AI agent, executes action
+4. API responds with Telegram Bot API format
+5. Your bot sends the response back to the user
 
-### Ejemplo de Request Body (POST/PUT)
+**Request:** Raw Telegram update JSON (from Telegram Bot API)
 
+**Response:** Telegram Bot API method format
 ```json
 {
-  "title": "Mi tarea",
-  "description": "Descripción de la tarea",
-  "completed": false
+  "method": "sendMessage",
+  "chat_id": 123456789,
+  "text": "Event 'Birthday Party' created with ID 5!",
+  "parse_mode": "Markdown"
 }
 ```
 
-## Acceso a la Base de Datos
+Your bot should execute this method to respond to the user.
 
-La base de datos SQLite se guarda en el archivo [backend/app.db](backend/app.db). Puedes acceder a ella usando:
+### GET /health
+Health check endpoint
 
-### Desde el contenedor del backend
+### GET /docs
+Interactive API documentation (Swagger UI) - **Available in development**
 
-```bash
-docker-compose exec backend sqlite3 app.db
-```
+### GET /redoc
+Alternative API documentation (ReDoc) - **Available in development**
 
-### Desde tu máquina local
+## Telegram Bot
 
-Si tienes SQLite instalado:
+The Telegram bot is included in the Docker Compose setup and will start automatically.
 
-```bash
-sqlite3 backend/app.db
-```
+**Setup:**
+1. Create bot with [@BotFather](https://t.me/botfather) on Telegram
+2. Get bot token with `/newbot`
+3. Add `TELEGRAM_BOT_TOKEN` to your `.env` file
+4. Bot will start automatically with `docker compose up`
 
-El archivo de base de datos se persiste en el volumen montado, por lo que los datos se mantienen entre reinicios del contenedor.
+**How it works:**
+- Bot receives messages from users
+- Forwards raw Telegram updates to API at `/webhook`
+- API processes with Claude and responds
+- Bot sends response back to user
 
-## Desarrollo
+## Database Migrations
 
-### Modificar el backend
-
-Los cambios en los archivos Python se recargan automáticamente gracias a `--reload` en uvicorn.
-
-### Modificar el frontend
-
-Los cambios en los archivos de Next.js se recargan automáticamente en modo desarrollo.
-
-## Troubleshooting
-
-### Puerto ya en uso
-
-Si algún puerto está en uso, puedes modificar los puertos en [docker-compose.yml](docker-compose.yml):
-
-```yaml
-ports:
-  - "PUERTO_HOST:PUERTO_CONTENEDOR"
-```
-
-### Reconstruir todo desde cero
+### Create Migration
 
 ```bash
-docker-compose down -v
-docker-compose up -d --build
+# Local (uses docker-compose.local.yml via .env)
+docker compose exec backend alembic revision --autogenerate -m "description"
+
+# Production (on server, uses default docker-compose.yml)
+docker compose exec backend alembic revision --autogenerate -m "description"
 ```
 
-### Ver errores de migración
+### Apply Migrations
 
 ```bash
-docker-compose exec backend alembic current
-docker-compose logs backend
+# Local
+docker compose exec backend alembic upgrade head
+
+# Production
+docker compose exec backend alembic upgrade head
 ```
 
-## Próximos Pasos
+### Rollback
+
+```bash
+docker compose exec backend alembic downgrade -1
+```
+
+## Project Structure
+
+```
+backend/
+├── agent/
+│   ├── base.py              # Abstract LLM agent interface
+│   ├── anthropic_agent.py   # Claude implementation
+│   └── __init__.py
+├── services/
+│   ├── database.py          # Database operations
+│   ├── telegram.py          # Telegram API client
+│   ├── s3.py               # S3 storage (with mock)
+│   └── __init__.py
+├── alembic/                 # Database migrations
+├── main.py                  # FastAPI app & webhook
+├── models.py                # SQLAlchemy models
+├── database.py              # DB connection
+└── requirements.txt
+```
+
+## Future Enhancements
+
+- [ ] Implement embeddings generation
+- [ ] Semantic search using pgvector
+- [ ] WhatsApp integration
+- [ ] Web frontend for browsing memories
+- [ ] Face recognition in photos
+- [ ] Automatic event suggestions
+- [ ] Memory highlights/summaries
+
+## Development
+
+### Add New Action
+
+1. Add tool definition in `agent/anthropic_agent.py`
+2. Add action handler in `main.py` → `execute_action()`
+3. Add database method if needed in `services/database.py`
+
+### Swap LLM Provider
+
+1. Create new agent class extending `agent/base.py`
+2. Implement `process_message()` and `generate_response()`
+3. Update `main.py` to use new agent
+
+## License
 
 - Agregar autenticación (JWT)
 - Implementar tests
@@ -305,3 +289,4 @@ docker-compose logs backend
 - Implementar cache con Redis
 - Implementar CSS framework (Tailwind CSS con Shadcn UI?)
 - LLM integration (Claude, OpenAI, etc.)
+MIT

@@ -1,3 +1,6 @@
+# Environment
+.env
+
 # Backend
 backend/__pycache__/
 backend/*.pyc
@@ -10,20 +13,15 @@ backend/.venv
 backend/app.db
 backend/app.db-journal
 
-# Frontend
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/build/
-frontend/.DS_Store
-frontend/*.log
-
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# Claude Code
+.claude/
 
 # OS
 .DS_Store

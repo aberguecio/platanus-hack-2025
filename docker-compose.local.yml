@@ -1,29 +1,52 @@
 services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: postgres_db_local
+    environment:
+      POSTGRES_USER: memories_user
+      POSTGRES_PASSWORD: memories_pass
+      POSTGRES_DB: memories_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_local:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memories_user -d memories_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: fastapi_backend_local
     environment:
-      DATABASE_URL: sqlite:///./app.db
+      DATABASE_URL: postgresql://memories_user:memories_pass@db:5432/memories_db
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
     command: bash entrypoint.sh
+    depends_on:
+      db:
+        condition: service_healthy
 
-  frontend:
+  telegram-bot:
     build:
-      context: ./frontend
+      context: ./telegram-bot
       dockerfile: Dockerfile
-    container_name: nextjs_frontend_local
+    container_name: telegram_bot_local
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-    ports:
-      - "3000:3000"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      API_URL: http://backend:8000/webhook
+    volumes:
+      - ./telegram-bot:/app
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+    restart: unless-stopped
+
+volumes:
+  postgres_data_local:

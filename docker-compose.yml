@@ -1,44 +1,47 @@
 services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: memories_user
+      POSTGRES_PASSWORD: memories_pass
+      POSTGRES_DB: memories_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - webapp
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memories_user -d memories_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: fastapi_backend
     environment:
-      DATABASE_URL: sqlite:///./app.db
+      DATABASE_URL: postgresql://memories_user:memories_pass@db:5432/memories_db
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
     volumes:
       - ./backend:/app
     command: bash entrypoint.sh
     networks:
       - webapp
+    depends_on:
+      db:
+        condition: service_healthy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ph-api.rule=Host(`ph.berguecio.cl`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.ph-api.rule=Host(`ph.berguecio.cl`)"
       - "traefik.http.routers.ph-api.entrypoints=websecure"
       - "traefik.http.routers.ph-api.tls=true"
       - "traefik.http.services.ph-api.loadbalancer.server.port=8000"
-      - "traefik.http.middlewares.ph-api-stripprefix.stripprefix.prefixes=/api"
-      - "traefik.http.routers.ph-api.middlewares=ph-api-stripprefix"
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: nextjs_frontend
-    depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    networks:
-      - webapp
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.ph.rule=Host(`ph.berguecio.cl`)"
-      - "traefik.http.routers.ph.entrypoints=websecure"
-      - "traefik.http.routers.ph.tls=true"
-      - "traefik.http.services.ph.loadbalancer.server.port=3000"
+volumes:
+  postgres_data:
 
 networks:
   webapp:
