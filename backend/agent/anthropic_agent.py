@@ -1,9 +1,9 @@
 import os
 import json
-from typing import Dict, Any, Optional, Callable
+from typing import Optional
 from anthropic import Anthropic
 from .base import LLMAgent
-from .tools import get_registry
+from .tools import get_registry, ExecutionContext
 
 class AnthropicAgent(LLMAgent):
     """
@@ -18,24 +18,22 @@ class AnthropicAgent(LLMAgent):
         self.client = Anthropic(api_key=self.api_key)
         self.model = "claude-haiku-4-5-20251001" #"claude-3-haiku-20240307"
 
-        # Store tool executor function (will be set externally)
-        self.tool_executor: Optional[Callable] = None
-
-    def set_tool_executor(self, executor: Callable):
-        """Set the function that will execute tools"""
-        self.tool_executor = executor
-
     async def process_message(
         self,
         user_message: str,
-        context: Optional[Dict[str, Any]] = None
+        ctx: ExecutionContext
     ) -> str:
         """
         Process message using Claude with tool calling for structured actions.
         Returns the final text response after executing all necessary tools.
-        """
-        context = context or {}
 
+        Args:
+            user_message: The message from the user
+            ctx: ExecutionContext with all dependencies (db, user, services, metadata)
+
+        Returns:
+            Final text response to send back to the user
+        """
         # Handle empty messages
         if not user_message or not user_message.strip():
             return "Please send me a message!"
@@ -47,16 +45,16 @@ class AnthropicAgent(LLMAgent):
         tools = registry.get_schemas()
 
         # Build system prompt with context
-        has_photo = context.get('has_photo', False)
+        has_photo = ctx.has_photo
         photo_context = "\n- USER HAS SENT A PHOTO! They want to save it as a memory." if has_photo else ""
 
         system_prompt = f"""You are a helpful assistant for a memories storage bot on Telegram.
 Users can create events and store memories (photos and text) in them.
 
 Current user context:
-- Telegram ID: {context.get('telegram_id', 'unknown')}
-- Username: {context.get('username', 'unknown')}
-- First name: {context.get('first_name', 'unknown')}{photo_context}
+- Telegram ID: {ctx.telegram_id or 'unknown'}
+- Username: {ctx.username or 'unknown'}
+- First name: {ctx.first_name or 'unknown'}{photo_context}
 
 Your job is to:
 1. Understand what the user wants to do
@@ -149,30 +147,23 @@ When you use a tool, wait for the result before responding to the user.
                 print(f"[AGENT] Executing tool: {tool_name}")
                 print(f"[AGENT] Tool input: {json.dumps(tool_input, indent=2)}")
 
-                # Execute the tool using the executor function
-                if self.tool_executor:
-                    try:
-                        result = await self.tool_executor(tool_name, tool_input, context)
-                        print(f"[AGENT] Tool result: {json.dumps(result, indent=2)}")
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": tool_use_id,
-                            "content": json.dumps(result)
-                        })
-                    except Exception as e:
-                        print(f"[AGENT] Tool execution error: {e}")
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": tool_use_id,
-                            "content": json.dumps({"success": False, "message": f"Error: {str(e)}"})
-                        })
-                else:
-                    # No executor set, return error
-                    print(f"[AGENT] ERROR: Tool executor not configured!")
+                # Execute the tool using the registry
+                try:
+                    result = await registry.execute(tool_name, tool_input, ctx)
+                    print(f"[AGENT] Tool result: {json.dumps(result, indent=2)}")
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": tool_use_id,
-                        "content": json.dumps({"success": False, "message": "Tool executor not configured"})
+                        "content": json.dumps(result)
+                    })
+                except Exception as e:
+                    print(f"[AGENT] Tool execution error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_id,
+                        "content": json.dumps({"success": False, "message": f"Error: {str(e)}"})
                     })
 
             # Add tool results to messages for next iteration
