@@ -43,6 +43,12 @@ The API receives raw Telegram updates, processes them with an AI agent (Claude),
 - `text`, `image_url`
 - `embedding` (vector, for future semantic search)
 
+**Acceso:**
+
+- **Frontend**: <http://localhost:3000>
+- **Backend API**: <http://localhost:8000>
+- **API Docs (Swagger)**: <http://localhost:8000/docs>
+- **API Redoc**: <http://localhost:8000/redoc>
 ## Setup
 
 ### 1. Environment Variables
@@ -53,6 +59,18 @@ Copy `.env.example` to `.env` and fill in:
 cp .env.example .env
 ```
 
+**Acceso (requiere Traefik configurado):**
+
+- **Frontend**: <https://ph.berguecio.cl>
+- **Backend API**: <https://ph.berguecio.cl/api>
+- **API Docs**: <https://ph.berguecio.cl/api/docs>
+
+**Arquitectura:**
+
+- Frontend accesible en raíz del dominio
+- Backend accesible en `/api` (el middleware stripprefix quita `/api` antes de enviar al backend)
+- Ambos servicios en la red `webapp` compartida con Traefik
+- Certificados SSL automáticos vía Traefik
 **Important:** The `.env` file includes `COMPOSE_FILE=docker-compose.local.yml` which makes Docker Compose use the local development file by default. This means you can run `docker compose up` instead of `docker compose -f docker-compose.local.yml up`.
 
 Required:
@@ -263,4 +281,12 @@ backend/
 
 ## License
 
+- Agregar autenticación (JWT)
+- Implementar tests
+- Agregar validación de datos
+- Implementar paginación
+- Agregar filtros y búsqueda
+- Implementar cache con Redis
+- Implementar CSS framework (Tailwind CSS con Shadcn UI?)
+- LLM integration (Claude, OpenAI, etc.)
 MIT
