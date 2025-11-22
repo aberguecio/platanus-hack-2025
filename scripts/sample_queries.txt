@@ -1,0 +1,32 @@
+# Sample search queries for testing semantic search
+# Lines starting with # are ignored
+
+# Location-based queries
+beach photos
+sunset at the beach
+mountain hiking
+city skyline
+
+# Event-based queries
+birthday party
+team dinner
+hackathon event
+graduation ceremony
+
+# Activity-based queries
+people laughing
+group photo
+presentation slides
+outdoor activities
+
+# Mood/atmosphere queries
+happy moments
+celebration photos
+peaceful scenery
+exciting adventures
+
+# Object-based queries
+food pictures
+technology and computers
+nature landscapes
+buildings and architecture

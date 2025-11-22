@@ -24,6 +24,7 @@ backend/app.db-journal
 
 # Claude Code
 .claude/
+settings.local.json
 
 # OS
 .DS_Store
@@ -31,3 +32,6 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Python
+.mypy_cache/

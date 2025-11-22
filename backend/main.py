@@ -7,6 +7,9 @@ from agent import AnthropicAgent
 from agent.services import MessagingService
 from agent.tools import get_registry, ExecutionContext
 from services import DatabaseService, TelegramService, S3Service
+from services.embedding import EmbeddingService
+from services.image import ImageService
+from services.search import SearchService
 from schemas import TelegramUpdate
 from models import User
 
@@ -26,6 +29,15 @@ messaging_service = MessagingService(
     telegram_service=telegram_service,
     database_service=DatabaseService
 )
+
+# Initialize Telegram service for downloading files
+telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+if telegram_bot_token:
+    telegram_service = TelegramService(telegram_bot_token)
+    image_service = ImageService(telegram_service=telegram_service, s3_service=s3_service)
+else:
+    telegram_service = None
+    image_service = None
 
 
 # Tool executor function that the agent will call
