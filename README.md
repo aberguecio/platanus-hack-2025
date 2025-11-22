@@ -66,11 +66,12 @@ Optional:
 
 ```bash
 # Start services (uses docker-compose.local.yml via .env)
-docker compose up -d
+docker compose up
 
-# View logs
-docker compose logs -f
+```
 
+### Migration
+```bash
 # Create initial migration
 docker compose exec backend alembic revision --autogenerate -m "initial schema"
 
@@ -99,7 +100,7 @@ docker compose exec backend alembic revision --autogenerate -m "initial schema"
 docker compose exec backend alembic upgrade head
 ```
 
-**Access (requires Traefik):**
+**Access:**
 - API: https://ph.berguecio.cl
 - Webhook: https://ph.berguecio.cl/webhook
 
