@@ -53,31 +53,35 @@ Copy `.env.example` to `.env` and fill in:
 cp .env.example .env
 ```
 
+**Important:** The `.env` file includes `COMPOSE_FILE=docker-compose.local.yml` which makes Docker Compose use the local development file by default. This means you can run `docker compose up` instead of `docker compose -f docker-compose.local.yml up`.
+
 Required:
 - `ANTHROPIC_API_KEY` - Get from https://console.anthropic.com/
-- `TELEGRAM_BOT_TOKEN` - Get from @BotFather on Telegram
 
 Optional:
 - `AWS_S3_BUCKET` - Leave empty to use mock storage
+- `COMPOSE_FILE` - Set to `docker-compose.local.yml` for local dev (already in .env.example)
 
 ### 2. Local Development
 
 ```bash
-# Start services
-docker compose -f docker-compose.local.yml up -d
+# Start services (uses docker-compose.local.yml via .env)
+docker compose up -d
 
 # View logs
-docker compose -f docker-compose.local.yml logs -f
+docker compose logs -f
 
 # Create initial migration
-docker compose -f docker-compose.local.yml exec backend alembic revision --autogenerate -m "initial schema"
+docker compose exec backend alembic revision --autogenerate -m "initial schema"
 
 # Apply migrations
-docker compose -f docker-compose.local.yml exec backend alembic upgrade head
+docker compose exec backend alembic upgrade head
 ```
 
 **Access:**
 - API: http://localhost:8000
+- **API Docs (Swagger)**: http://localhost:8000/docs
+- **API Docs (ReDoc)**: http://localhost:8000/redoc
 - Health check: http://localhost:8000/health
 - Database: localhost:5432
 
@@ -136,43 +140,55 @@ User: "Show memories from event #2"
 ## API Endpoints
 
 ### POST /webhook
-Main endpoint - receives Telegram updates
+Main endpoint that receives Telegram updates from your bot.
 
-**Request:** Raw Telegram update JSON
+**Flow:**
+1. Your Telegram bot receives a message from a user
+2. Bot makes POST request to this endpoint with the update
+3. API processes with AI agent, executes action
+4. API responds with Telegram Bot API format
+5. Your bot sends the response back to the user
 
-**Response:**
+**Request:** Raw Telegram update JSON (from Telegram Bot API)
+
+**Response:** Telegram Bot API method format
 ```json
 {
-  "status": "success",
-  "action": "create_event",
-  "response": "Event created!"
+  "method": "sendMessage",
+  "chat_id": 123456789,
+  "text": "Event 'Birthday Party' created with ID 5!",
+  "parse_mode": "Markdown"
 }
 ```
+
+Your bot should execute this method to respond to the user.
 
 ### GET /health
 Health check endpoint
 
+### GET /docs
+Interactive API documentation (Swagger UI) - **Available in development**
+
+### GET /redoc
+Alternative API documentation (ReDoc) - **Available in development**
+
 ## Telegram Bot Setup
+
+**Note:** Your bot calls this API, not the other way around. The API doesn't call Telegram directly.
 
 1. Create bot with @BotFather
 2. Get bot token
-3. Set webhook:
-
-```bash
-curl -X POST https://api.telegram.org/bot<TOKEN>/setWebhook \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://ph.berguecio.cl/webhook"}'
-```
+3. Configure your bot to POST updates to your webhook endpoint
 
 ## Database Migrations
 
 ### Create Migration
 
 ```bash
-# Local
-docker compose -f docker-compose.local.yml exec backend alembic revision --autogenerate -m "description"
+# Local (uses docker-compose.local.yml via .env)
+docker compose exec backend alembic revision --autogenerate -m "description"
 
-# Production
+# Production (on server, uses default docker-compose.yml)
 docker compose exec backend alembic revision --autogenerate -m "description"
 ```
 
@@ -180,7 +196,7 @@ docker compose exec backend alembic revision --autogenerate -m "description"
 
 ```bash
 # Local
-docker compose -f docker-compose.local.yml exec backend alembic upgrade head
+docker compose exec backend alembic upgrade head
 
 # Production
 docker compose exec backend alembic upgrade head

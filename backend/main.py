@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional
 from datetime import datetime
 from database import get_db
 from agent import AnthropicAgent
 from services import DatabaseService, TelegramService, S3Service
+from schemas import TelegramUpdate
 
 app = FastAPI(title="Memories Bot API", version="1.0.0")
 
@@ -20,26 +21,29 @@ def health_check():
 
 
 @app.post("/webhook")
-async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
+async def telegram_webhook(update: TelegramUpdate, db: Session = Depends(get_db)):
     """
     Main webhook endpoint that receives raw Telegram updates and processes them.
+
+    Receives a Telegram Update object, processes it with the AI agent,
+    and returns a Telegram Bot API response.
     """
     try:
-        # Get raw update from Telegram
-        update: Dict[str, Any] = await request.json()
-
         # Extract message data
-        message = update.get("message", {})
+        message = update.message
         if not message:
             return {"status": "ignored", "reason": "no_message"}
 
         # Extract user info
-        from_user = message.get("from", {})
-        telegram_id = str(from_user.get("id"))
-        username = from_user.get("username")
-        first_name = from_user.get("first_name")
-        last_name = from_user.get("last_name")
-        chat_id = message.get("chat", {}).get("id")
+        from_user = message.from_
+        if not from_user:
+            return {"status": "ignored", "reason": "no_user"}
+
+        telegram_id = str(from_user.id)
+        username = from_user.username
+        first_name = from_user.first_name
+        last_name = from_user.last_name
+        chat_id = message.chat.id
 
         # Get or create user
         user = DatabaseService.get_or_create_user(
@@ -51,8 +55,8 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
         )
 
         # Extract message content
-        text = message.get("text", "")
-        photo = message.get("photo")  # Array of PhotoSize objects
+        text = message.text or ""
+        photo = message.photo  # Array of PhotoSize objects
 
         # Prepare context for agent
         context = {
@@ -87,13 +91,13 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
         else:
             final_response = action_result.get("message", "Sorry, something went wrong.")
 
-        # Send response back to user via Telegram
-        await telegram_service.send_message(chat_id, final_response)
-
+        # Return response for the bot to send
+        # Using Telegram Bot API response format
         return {
-            "status": "success",
-            "action": action,
-            "response": final_response
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": final_response,
+            "parse_mode": "Markdown"
         }
 
     except Exception as e:
@@ -156,14 +160,18 @@ async def execute_action(
             image_url = None
             if photo:
                 # Get largest photo
-                largest_photo = max(photo, key=lambda p: p.get("file_size", 0))
-                file_id = largest_photo.get("file_id")
+                largest_photo = max(photo, key=lambda p: p.file_size or 0)
+                file_id = largest_photo.file_id
 
-                # Download from Telegram
-                image_data = await telegram_service.download_file(file_id)
+                try:
+                    # Download from Telegram
+                    image_data = await telegram_service.download_file(file_id)
 
-                # Upload to S3 (or mock)
-                image_url = await s3_service.upload_image(image_data)
+                    # Upload to S3 (or mock)
+                    image_url = await s3_service.upload_image(image_data)
+                except Exception as img_error:
+                    print(f"Error handling image: {img_error}")
+                    # Continue without image if download/upload fails
 
             # Save memory
             memory = DatabaseService.add_memory(
@@ -175,7 +183,10 @@ async def execute_action(
             )
 
             if memory:
-                return {"success": True, "message": f"Memory added to event #{event_id}!"}
+                msg = f"Memory added to event #{event_id}!"
+                if image_url:
+                    msg += f"\nImage: {image_url}"
+                return {"success": True, "message": msg}
             else:
                 return {"success": False, "message": "Could not add memory. Make sure you're in this event."}
 

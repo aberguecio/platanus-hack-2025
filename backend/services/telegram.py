@@ -1,34 +1,12 @@
-import os
 import httpx
 from typing import Optional
 
 class TelegramService:
-    """Service for sending messages to Telegram"""
+    """Service for downloading files from Telegram"""
 
-    def __init__(self, bot_token: Optional[str] = None):
-        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
-        if not self.bot_token:
-            raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required")
-
+    def __init__(self, bot_token: str):
+        self.bot_token = bot_token
         self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
-
-    async def send_message(
-        self,
-        chat_id: int,
-        text: str,
-        parse_mode: str = "Markdown"
-    ) -> dict:
-        """Send a text message to a chat"""
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": text,
-                    "parse_mode": parse_mode
-                }
-            )
-            return response.json()
 
     async def download_file(self, file_id: str) -> bytes:
         """Download a file from Telegram"""
