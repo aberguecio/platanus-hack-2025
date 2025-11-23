@@ -23,33 +23,33 @@ class AnthropicAgent(LLMAgent):
         self.model = self.prompt_builder.get_config("settings", {}).get("model", "claude-sonnet-4-5-20250929")
 
     async def _build_message_content(
-        self, 
-        text: str, 
-        photo_file_id: Optional[str], 
+        self,
+        text: str,
+        photo_file_id: Optional[str],
         telegram_service
     ) -> Any:
         """
         Build message content, either simple text or multimodal (image + text).
-        
+
         Args:
             text: Text message from user
             photo_file_id: Optional Telegram file_id for photo
             telegram_service: TelegramService for downloading photos
-            
+
         Returns:
             Either a string (text only) or a list of content blocks (multimodal)
         """
         # If no photo, return simple text
         if not photo_file_id or not telegram_service:
             return text
-        
+
         # Download and encode photo
         image_data = await self._download_and_encode_photo(photo_file_id, telegram_service)
-        
+
         if not image_data:
             print("[AGENT] Failed to download photo, using text-only message")
             return text
-        
+
         # Build multimodal message with image + text
         print("[AGENT] Building multimodal message with image and text")
 
@@ -67,7 +67,7 @@ class AnthropicAgent(LLMAgent):
     async def _download_and_encode_photo(self, file_id: str, telegram_service) -> Dict[str, Any]:
         """
         Download photo from Telegram and encode to base64.
-        
+
         Returns:
             Dict with base64 data and media_type for Claude API
         """
@@ -75,14 +75,14 @@ class AnthropicAgent(LLMAgent):
             print(f"[AGENT] Downloading photo from Telegram: {file_id}")
             image_bytes = await telegram_service.download_file(file_id)
             print(f"[AGENT] Photo downloaded, size: {len(image_bytes)} bytes")
-            
+
             # Encode to base64
             base64_image = base64.standard_b64encode(image_bytes).decode("utf-8")
-            
+
             # Detect media type
             media_type = self._detect_image_format(image_bytes)
             print(f"[AGENT] Image format detected: {media_type}")
-            
+
             return {
                 "type": "base64",
                 "media_type": media_type,
@@ -158,12 +158,24 @@ class AnthropicAgent(LLMAgent):
             messages.extend(formatted_history)
 
         # Add current user message (with photo if present)
+        # For batch processing, add info about additional photos
+        if ctx.is_batch and ctx.batch_photos and len(ctx.batch_photos) > 1:
+            # Build list of all photo file_ids for the agent
+            photo_ids = [photo["file_id"] for photo in ctx.batch_photos]
+            batch_info = f"\n\n[SISTEMA: El usuario envió {len(ctx.batch_photos)} fotos. Debes guardar TODAS usando add_memory con estos photo_file_id:\n"
+            for i, file_id in enumerate(photo_ids, 1):
+                batch_info += f"- Foto {i}: {file_id}\n"
+            batch_info += "Usa el parámetro 'photo_file_id' en add_memory para especificar cada foto.]"
+            user_message_with_batch = user_message + batch_info
+        else:
+            user_message_with_batch = user_message
+
         current_message_content = await self._build_message_content(
-            user_message, 
-            ctx.photo_file_id, 
+            user_message_with_batch,
+            ctx.photo_file_id,
             ctx.telegram_service
         )
-        
+
         messages.append({
             "role": "user",
             "content": current_message_content

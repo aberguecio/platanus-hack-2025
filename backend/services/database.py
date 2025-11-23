@@ -110,6 +110,46 @@ class DatabaseService:
         return memory
 
     @staticmethod
+    def update_memory(
+        db: Session,
+        user: User,
+        memory_id: int,
+        text: Optional[str] = None,
+        image_description: Optional[str] = None
+    ) -> Optional[Memory]:
+        """
+        Update an existing memory's text or image_description.
+        Only the memory owner can update it.
+
+        Args:
+            db: Database session
+            user: User making the update
+            memory_id: ID of the memory to update
+            text: New text content (optional)
+            image_description: New image description (optional)
+
+        Returns:
+            Updated Memory or None if not found/not authorized
+        """
+        memory = db.query(Memory).filter(
+            Memory.id == memory_id,
+            Memory.user_id == user.id
+        ).first()
+
+        if not memory:
+            return None
+
+        # Update fields if provided
+        if text is not None:
+            memory.text = text
+        if image_description is not None:
+            memory.image_description = image_description
+
+        db.commit()
+        db.refresh(memory)
+        return memory
+
+    @staticmethod
     def list_user_events(db: Session, user: User) -> List[Event]:
         """List all events for a user"""
         return user.events
@@ -259,7 +299,7 @@ class DatabaseService:
             type=ChannelTypeEnum.TELEGRAM,
             identifier=channel_identifier
         )
-        
+
         # Get or create default assistant
         assistant = db.query(AIMemoryAssistant).first()
         if not assistant:
@@ -267,14 +307,14 @@ class DatabaseService:
                 db=db,
                 instructions=assistant_instructions
             )
-        
+
         # Get active conversation for this user
         conversation = db.query(Conversation).filter(
             Conversation.user_id == user_id,
             Conversation.channel_id == channel.id,
             Conversation.status == ConversationStatusEnum.ACTIVE
         ).first()
-        
+
         if not conversation:
             conversation = DatabaseService.create_conversation(
                 db=db,
@@ -282,7 +322,7 @@ class DatabaseService:
                 assistant_id=assistant.id,
                 channel_id=channel.id
             )
-        
+
         return conversation
 
     # ========================================================================
@@ -327,7 +367,7 @@ class DatabaseService:
     ) -> Message:
         """
         Save a message to the database with embedding generation.
-        
+
         Args:
             db: Database session
             conversation_id: ID of the conversation
@@ -337,7 +377,7 @@ class DatabaseService:
             telegram_service: Optional TelegramService for downloading photos
             image_service: Optional ImageService for processing images
             s3_service: Optional S3Service for uploading photos
-            
+
         Returns:
             Created Message object
         """
@@ -364,7 +404,7 @@ class DatabaseService:
                 logger.error(f"[DATABASE_SERVICE] Error processing image: {e}")
                 # Continue with text content as fallback
                 embedding_text = content
-        
+
         # Generate embedding
         if embedding_text and embedding_text.strip():
             try:
@@ -378,7 +418,7 @@ class DatabaseService:
             except Exception as e:
                 logger.error(f"[DATABASE_SERVICE] Error generating embedding: {e}")
                 # Continue without embedding - don't block message save
-        
+
         # Create message with embedding, photo URL, and image description
         message = Message(
             conversation_id=conversation_id,
@@ -425,12 +465,12 @@ class DatabaseService:
     ) -> List[Message]:
         """
         Get the most recent messages for a conversation.
-        
+
         Args:
             db: Database session
             conversation_id: ID of the conversation
             limit: Maximum number of messages to retrieve (default: 10)
-            
+
         Returns:
             List of Message objects ordered by created_at descending (most recent first)
         """

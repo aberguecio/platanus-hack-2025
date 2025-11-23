@@ -47,6 +47,32 @@ services:
       - "traefik.http.routers.ph-api.tls=true"
       - "traefik.http.services.ph-api.loadbalancer.server.port=8000"
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis_queue
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - webapp
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: redis_insight
+    ports:
+      - "8001:8001"
+    networks:
+      - webapp
+    depends_on:
+      - redis
+
   telegram-bot:
     build:
       context: ./telegram-bot
@@ -58,13 +84,37 @@ services:
     volumes:
       - ./telegram-bot:/app
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - webapp
+    restart: unless-stopped
+
+  telegram-worker:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: telegram_worker
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      API_URL: http://backend:8000/webhook/batch
+    command: arq worker.WorkerSettings
+    volumes:
+      - ./telegram-bot:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
     networks:
       - webapp
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   webapp:

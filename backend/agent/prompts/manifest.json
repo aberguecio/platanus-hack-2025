@@ -16,7 +16,8 @@
       "ambiguity_handling.json",
       "error_recovery.json",
       "memory_enrichment.json",
-      "text_memory_capture.json"
+      "text_memory_capture.json",
+      "batch_photo_processing.json"
     ]
   },
 

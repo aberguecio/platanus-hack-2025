@@ -26,6 +26,10 @@ class AddMemoryTool(BaseTool):
                         "type": "boolean",
                         "description": "Whether this memory includes an image",
                     },
+                    "photo_file_id": {
+                        "type": "string",
+                        "description": "Telegram file_id of the photo to save (optional, for batch processing with multiple photos)",
+                    },
                 },
                 "required": ["event_id"],
             },
@@ -40,8 +44,8 @@ class AddMemoryTool(BaseTool):
         memory_text = tool_input.get("text")
         has_image = tool_input.get("has_image", False)
 
-        # Handle image from context if available
-        photo_file_id = ctx.photo_file_id
+        # Get photo_file_id from tool input (for batch processing) or from context
+        photo_file_id = tool_input.get("photo_file_id") or ctx.photo_file_id
         image_url = None
 
         print(f"[TOOL] add_memory - event_id: {event_id}")

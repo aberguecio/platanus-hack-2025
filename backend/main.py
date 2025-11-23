@@ -1,4 +1,5 @@
 import os
+from typing import List, Dict, Any
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from database import get_db
@@ -68,3 +69,40 @@ async def telegram_webhook(update: TelegramUpdate, db: Session = Depends(get_db)
     La lógica de procesamiento está ahora encapsulada en MessagingService.
     """
     return await messaging_service.process_response(update, db)
+
+
+@app.post("/webhook/batch")
+async def webhook_batch(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """
+    Batch webhook endpoint que recibe múltiples updates de Telegram agrupados.
+
+    Este endpoint es llamado por el ARQ worker después de que expira la ventana
+    de agrupación (12.5 segundos). Procesa todos los mensajes como un solo batch,
+    lo cual es especialmente útil para múltiples fotos.
+
+    Args:
+        payload: Dict con 'updates' (lista de Telegram updates) y 'user_id'
+        db: Database session
+
+    Returns:
+        Dict con método y respuesta de Telegram Bot API
+    """
+    updates = payload.get("updates", [])
+    user_id = payload.get("user_id")
+
+    if not updates:
+        return {"error": "No updates provided"}
+
+    print(f"[BATCH] Processing {len(updates)} messages for user {user_id}")
+
+    # Procesar batch usando MessagingService
+    response = await messaging_service.process_message_batch(
+        updates=updates,
+        db=db
+    )
+
+    print(f"[BATCH] Batch processed successfully")
+    return response
