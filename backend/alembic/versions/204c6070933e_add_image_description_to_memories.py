@@ -1,7 +1,7 @@
 """add image_description to memories
 
 Revision ID: 204c6070933e
-Revises: c7d8e9f0a1b2
+Revises: 484ffb5c5a2e
 Create Date: 2025-11-22 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = '204c6070933e'
-down_revision: Union[str, None] = 'c7d8e9f0a1b2'
+down_revision: Union[str, None] = '484ffb5c5a2e'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
