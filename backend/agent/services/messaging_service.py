@@ -13,7 +13,7 @@ class MessagingService:
     encapsulando la lógica de negocio relacionada con mensajería.
     """
 
-    def __init__(self, agent, telegram_service, database_service, s3_service=None):
+    def __init__(self, agent, telegram_service, database_service, s3_service=None, image_service=None):
         """
         Inicializa el servicio de mensajería.
 
@@ -22,11 +22,13 @@ class MessagingService:
             telegram_service: Instancia del servicio de Telegram
             database_service: Servicio de base de datos
             s3_service: Instancia del servicio de S3 (opcional)
+            image_service: Instancia del servicio de imágenes (opcional)
         """
         self.agent = agent
         self.telegram_service = telegram_service
         self.database_service = database_service
         self.s3_service = s3_service
+        self.image_service = image_service
 
     async def send_message(
         self,
@@ -208,6 +210,7 @@ class MessagingService:
             user=user,
             s3_service=self.s3_service,
             telegram_service=self.telegram_service,
+            image_service=self.image_service,
             metadata=metadata,
             conversation_history=conversation_history or []
         )

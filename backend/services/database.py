@@ -81,6 +81,7 @@ class DatabaseService:
         event_id: int,
         text: Optional[str] = None,
         s3_url: Optional[str] = None,
+        image_description: Optional[str] = None,
         media_type: Optional[MediaTypeEnum] = None,
         memory_metadata: Optional[Dict[str, Any]] = None,
         message_id: Optional[int] = None
@@ -95,6 +96,7 @@ class DatabaseService:
             user_id=user.id,
             text=text,
             s3_url=s3_url,
+            image_description=image_description,
             media_type=media_type,
             memory_metadata=memory_metadata,
             message_id=message_id

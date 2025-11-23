@@ -19,6 +19,10 @@ app = FastAPI(title="Memories Bot API", version="1.0.0")
 agent = AnthropicAgent()
 s3_service = S3Service()
 telegram_service = TelegramService(os.getenv("TELEGRAM_BOT_TOKEN", ""))
+image_service = ImageService(
+    telegram_service=telegram_service,
+    s3_service=s3_service
+)
 
 # Get tool registry (tools are auto-registered on import)
 tool_registry = get_registry()
@@ -28,7 +32,8 @@ messaging_service = MessagingService(
     agent=agent,
     telegram_service=telegram_service,
     database_service=DatabaseService,
-    s3_service=s3_service
+    s3_service=s3_service,
+    image_service=image_service
 )
 
 
