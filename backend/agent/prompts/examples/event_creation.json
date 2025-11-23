@@ -1,0 +1,51 @@
+[
+  {
+    "scenario": "User wants to create event for photos",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "quiero guardar fotos de la hackaton"
+      },
+      {
+        "role": "assistant",
+        "thinking": "User wants to create event. Check if exists first, then create.",
+        "tool_calls": [
+          {
+            "tool": "list_events",
+            "purpose": "Check if 'hackaton' event already exists"
+          },
+          {
+            "tool": "create_event",
+            "input": {
+              "name": "Hackaton",
+              "description": "Fotos de la hackaton"
+            }
+          }
+        ],
+        "response": "Listo! Creé el evento 'Hackaton'. Cuando quieras sube las fotos 📸"
+      }
+    ]
+  },
+  {
+    "scenario": "User creates event with specific date",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "crea un evento para mi cumpleaños el 15 de marzo"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "tool": "create_event",
+            "input": {
+              "name": "Mi cumpleaños",
+              "event_date": "2025-03-15"
+            }
+          }
+        ],
+        "response": "Hecho! Creé 'Mi cumpleaños' para el 15 de marzo 🎉"
+      }
+    ]
+  }
+]

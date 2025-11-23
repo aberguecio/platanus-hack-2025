@@ -27,7 +27,7 @@ class Conversation(Base):
     assistant_id = Column(Integer, ForeignKey("ai_memory_assistants.id"), nullable=False, index=True)
     channel_id = Column(Integer, ForeignKey("channels.id"), nullable=False, index=True)
     title = Column(String, nullable=True)
-    status = Column(Enum(ConversationStatusEnum), nullable=False, server_default="active", index=True)
+    status = Column(Enum(ConversationStatusEnum, values_callable=lambda x: [e.value for e in x]), nullable=False, server_default="active", index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

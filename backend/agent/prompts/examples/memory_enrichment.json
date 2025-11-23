@@ -1,0 +1,188 @@
+[
+  {
+    "scenario": "Photo enrichment - Full conversation (2 questions)",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true,
+        "image_description": "Cuatro personas en un restaurante, mesa con varios platos de comida, ambiente festivo con luces cálidas"
+      },
+      {
+        "role": "assistant",
+        "thinking": "User sent photo. Need to save first, then ask contextual question based on what I see in the image.",
+        "tool_calls": [
+          {"tool": "add_memory", "event_id": 5}
+        ],
+        "response": "Listo, guardada en 'Cumpleaños' ✨ Veo que estaban en un restaurante con harta comida, ¿qué estaban celebrando?"
+      },
+      {
+        "role": "user",
+        "content": "Era el cumpleaños de mi hermana"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Good context! Can ask one more follow-up question. Max 2 questions total.",
+        "response": "¿Qué tal estuvo la comida?"
+      },
+      {
+        "role": "user",
+        "content": "Increíble, pedimos sushi y estaba buenísimo"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Got great context. Close the conversation positively. Don't ask more questions.",
+        "response": "Qué rico! Queda todo guardado 📸"
+      }
+    ]
+  },
+  {
+    "scenario": "Photo enrichment - User gives brief response, stop asking",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true,
+        "image_description": "Paisaje de montaña con nieve, cielo azul, dos personas de espaldas mirando el horizonte"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "add_memory"}],
+        "response": "Guardada en 'Viaje' ✨ Ese paisaje se ve increíble, ¿qué se sentía estar ahí arriba?"
+      },
+      {
+        "role": "user",
+        "content": "bonito"
+      },
+      {
+        "role": "assistant",
+        "thinking": "User gave very brief response. Could ask one more question, but make it specific.",
+        "response": "¿Con quién estabas?"
+      },
+      {
+        "role": "user",
+        "content": "con un amigo"
+      },
+      {
+        "role": "assistant",
+        "thinking": "User is giving minimal context. Don't push further, accept and close.",
+        "response": "Perfecto, queda guardada ✨"
+      }
+    ]
+  },
+  {
+    "scenario": "Photo enrichment - User doesn't want to share context",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true,
+        "image_description": "Playa al atardecer, persona caminando por la orilla"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "add_memory"}],
+        "response": "Listo, en 'Vacaciones' ✨ Veo que estaban en la playa al atardecer, ¿cómo estuvo ese día?"
+      },
+      {
+        "role": "user",
+        "content": "no sé, solo guárdala"
+      },
+      {
+        "role": "assistant",
+        "thinking": "User doesn't want to share context. Respect that, don't push.",
+        "response": "Listo! Guardada 📸"
+      }
+    ]
+  },
+  {
+    "scenario": "Photo enrichment - User gives rich context upfront",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "mira esta foto del último día con mis compañeros de la hackaton",
+        "has_photo": true,
+        "image_description": "Grupo de 8 personas en una sala con computadores, sonriendo a la cámara, algunos levantando las manos"
+      },
+      {
+        "role": "assistant",
+        "thinking": "User already gave good context (last day, hackaton, teammates). Still ask one specific question based on image.",
+        "tool_calls": [{"tool": "add_memory"}],
+        "response": "Guardada en 'Hackaton' ✨ Se ven todos muy contentos, ¿cómo les fue en el proyecto?"
+      },
+      {
+        "role": "user",
+        "content": "Ganamos el segundo lugar!"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Great! Got the outcome. That's enough context, close positively.",
+        "response": "Qué bacán! Felicitaciones 🎉 Todo guardado"
+      }
+    ]
+  },
+  {
+    "scenario": "Photo enrichment - Specific food question",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true,
+        "image_description": "Mesa con varios platos de comida italiana, pasta, pizza, vino tinto"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "add_memory"}],
+        "response": "En 'Cenas' ✨ Veo que pidieron italiano, ¿qué tal estuvo?"
+      },
+      {
+        "role": "user",
+        "content": "Riquísimo, la pasta estaba perfecta"
+      },
+      {
+        "role": "assistant",
+        "response": "¿Era alguna ocasión especial?"
+      },
+      {
+        "role": "user",
+        "content": "Aniversario con mi pareja"
+      },
+      {
+        "role": "assistant",
+        "response": "Qué lindo! Felicidades 💕 Queda guardado"
+      }
+    ]
+  },
+  {
+    "scenario": "Photo enrichment - Specific people question",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true,
+        "image_description": "Selfie de 3 personas sonriendo, fondo de ciudad, atardecer"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "add_memory"}],
+        "response": "Guardada ✨ ¿Quiénes son las personas de la foto?"
+      },
+      {
+        "role": "user",
+        "content": "Mis mejores amigos: Javi y Cata"
+      },
+      {
+        "role": "assistant",
+        "response": "¿Qué estaban haciendo?"
+      },
+      {
+        "role": "user",
+        "content": "Salimos a caminar por el centro después del trabajo"
+      },
+      {
+        "role": "assistant",
+        "response": "Qué buena onda! Guardado 📸"
+      }
+    ]
+  }
+]

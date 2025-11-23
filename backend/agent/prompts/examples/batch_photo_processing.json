@@ -1,0 +1,260 @@
+[
+  {
+    "scenario": "Batch: 3 fotos de restaurante enviadas rápidamente",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "mira estas fotos del cumple",
+        "has_photo": true,
+        "is_batch": true,
+        "batch_size": 4,
+        "note": "3 fotos + 1 texto, enviados en < 12s"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Batch con 3 fotos. Debo: 1) Guardar todas con add_memory, 2) Preguntar algo general sobre todas",
+        "response": "Listo, guardé las 3 fotos en 'Cumpleaños' ✨ Veo pizza, pasta y un pastel. ¿Cómo estuvo la celebración?",
+        "tool_use": [
+          {
+            "name": "add_memory",
+            "input": {
+              "event_id": 1,
+              "text": "",
+              "has_image": true
+            },
+            "note": "Foto 1"
+          },
+          {
+            "name": "add_memory",
+            "input": {
+              "event_id": 1,
+              "text": "",
+              "has_image": true
+            },
+            "note": "Foto 2"
+          },
+          {
+            "name": "add_memory",
+            "input": {
+              "event_id": 1,
+              "text": "",
+              "has_image": true
+            },
+            "note": "Foto 3"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": "Fue increíble, mi hermana cumplió 25 años. Fuimos a su restaurante favorito"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Usuario dio contexto general. Debo actualizar las 3 fotos con este contexto usando update_memory",
+        "response": "Qué lindo momento! Todo guardado con el contexto del cumple 25 de tu hermana 🎉",
+        "tool_use": [
+          {
+            "name": "update_memory",
+            "input": {
+              "memory_id": 101,
+              "text": "Cumpleaños 25 de mi hermana en su restaurante favorito"
+            }
+          },
+          {
+            "name": "update_memory",
+            "input": {
+              "memory_id": 102,
+              "text": "Cumpleaños 25 de mi hermana en su restaurante favorito"
+            }
+          },
+          {
+            "name": "update_memory",
+            "input": {
+              "memory_id": 103,
+              "text": "Cumpleaños 25 de mi hermana en su restaurante favorito"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenario": "Batch: 5 fotos de playa sin texto",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true,
+        "is_batch": true,
+        "batch_size": 5,
+        "note": "5 fotos enviadas rápidamente sin texto"
+      },
+      {
+        "role": "assistant",
+        "thinking": "5 fotos en batch sin texto. No hay evento reciente en historial. Debo preguntar a qué evento van",
+        "response": "Veo 5 fotos de la playa con atardeceres hermosos. ¿A qué evento van estas fotos?",
+        "tool_use": []
+      },
+      {
+        "role": "user",
+        "content": "A vacaciones caribe"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Usuario indicó evento. Primero buscar 'vacaciones caribe', luego guardar las 5 fotos",
+        "response": "Perfecto! Guardadas las 5 fotos en 'Vacaciones Caribe' ✨ ¿Con quién fuiste?",
+        "tool_use": [
+          {
+            "name": "list_events",
+            "input": {
+              "search_query": "vacaciones caribe"
+            }
+          },
+          {
+            "name": "add_memory",
+            "input": {
+              "event_id": 2,
+              "text": "",
+              "has_image": true
+            },
+            "note": "x5 times"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": "Con mi familia, fuimos todos juntos"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Contexto adicional. Actualizar las 5 fotos",
+        "response": "Hermoso! Todo guardado con el contexto familiar 🏖️",
+        "tool_use": [
+          {
+            "name": "update_memory",
+            "input": {
+              "memory_id": 201,
+              "text": "Vacaciones en el Caribe con toda mi familia"
+            },
+            "note": "x5 times para todas las fotos"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenario": "Batch: Textos rápidos + 2 fotos",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "Hola\nMira esto\n[2 fotos]",
+        "has_photo": true,
+        "is_batch": true,
+        "batch_size": 4,
+        "note": "Usuario envió 'Hola', 'Mira esto', y 2 fotos en rápida sucesión"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Batch con textos casuales y 2 fotos. Contexto sugiere evento reciente en historial. Guardar fotos y preguntar",
+        "response": "Guardadas las 2 fotos en 'Trekking' ✨ Veo que llegaron a una cumbre. ¿Cómo se sintieron?",
+        "tool_use": [
+          {
+            "name": "add_memory",
+            "input": {
+              "event_id": 3,
+              "text": "",
+              "has_image": true
+            },
+            "note": "x2"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": "Agotados pero felices! Subimos 5 horas"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Contexto emocional y detalles. Actualizar ambas fotos",
+        "response": "Qué logro! Queda todo guardado ⛰️",
+        "tool_use": [
+          {
+            "name": "update_memory",
+            "input": {
+              "memory_id": 301,
+              "text": "Llegada a la cumbre después de 5 horas de subida, agotados pero felices"
+            }
+          },
+          {
+            "name": "update_memory",
+            "input": {
+              "memory_id": 302,
+              "text": "Llegada a la cumbre después de 5 horas de subida, agotados pero felices"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenario": "Batch con contexto específico para cada foto",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "[3 fotos de personas diferentes]",
+        "has_photo": true,
+        "is_batch": true,
+        "batch_size": 3
+      },
+      {
+        "role": "assistant",
+        "thinking": "3 fotos de personas diferentes. Guardar todas primero",
+        "response": "Guardadas las 3 fotos en 'Reunión Familiar' ✨ Veo diferentes personas. ¿Quiénes son?",
+        "tool_use": [
+          {
+            "name": "add_memory",
+            "input": {
+              "event_id": 4,
+              "text": "",
+              "has_image": true
+            },
+            "note": "x3"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": "La primera es mi tía María, la segunda mi primo Juan, y la tercera mi abuela Rosa"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Usuario dio contexto ESPECÍFICO para cada foto. Debo actualizar cada una con su info correspondiente",
+        "response": "Perfecto! Cada foto queda con su nombre guardado 👨‍👩‍👧‍👦",
+        "tool_use": [
+          {
+            "name": "update_memory",
+            "input": {
+              "memory_id": 401,
+              "text": "Tía María en la reunión familiar"
+            }
+          },
+          {
+            "name": "update_memory",
+            "input": {
+              "memory_id": 402,
+              "text": "Primo Juan en la reunión familiar"
+            }
+          },
+          {
+            "name": "update_memory",
+            "input": {
+              "memory_id": 403,
+              "text": "Abuela Rosa en la reunión familiar"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
+

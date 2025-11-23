@@ -52,7 +52,6 @@ class ToolRegistry:
         except Exception as e:
             print(f"[REGISTRY] Tool {tool_name} execution error: {e}")
             import traceback
-
             traceback.print_exc()
             return {"success": False, "message": f"Tool execution error: {str(e)}"}
 
