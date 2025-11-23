@@ -42,11 +42,11 @@ services:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ph-api.rule=Host(`ph.berguecio.cl`) && (PathPrefix(`/*`))"
+      - "traefik.http.routers.ph-api.rule=Host(`ph.berguecio.cl`) && !PathPrefix(`/front`)"
       - "traefik.http.routers.ph-api.entrypoints=websecure"
       - "traefik.http.routers.ph-api.tls=true"
       - "traefik.http.services.ph-api.loadbalancer.server.port=8000"
-      - "traefik.http.routers.ph-api.priority=1000"
+      - "traefik.http.routers.ph-api.priority=10"
 
   redis:
     image: redis:7-alpine
@@ -122,6 +122,7 @@ services:
       - /app/node_modules
     environment:
       - NEXT_PUBLIC_API_URL=https://ph.berguecio.cl
+      - NEXT_PUBLIC_BASE_PATH=/front
     command: sh -c "yarn install && yarn dev -H 0.0.0.0"
     networks:
       - webapp
@@ -130,10 +131,13 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ph-frontend.rule=Host(`ph.berguecio.cl`) && PathPrefix(`/`)"
+      - "traefik.http.routers.ph-frontend.rule=Host(`ph.berguecio.cl`) && PathPrefix(`/front`)"
       - "traefik.http.routers.ph-frontend.entrypoints=websecure"
       - "traefik.http.routers.ph-frontend.tls=true"
       - "traefik.http.services.ph-frontend.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.frontend-stripprefix.stripprefix.prefixes=/front"
+      - "traefik.http.routers.ph-frontend.middlewares=frontend-stripprefix"
+      - "traefik.http.routers.ph-frontend.priority=100"
 
 volumes:
   postgres_data:
