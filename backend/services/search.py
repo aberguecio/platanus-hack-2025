@@ -18,7 +18,7 @@ class SearchResult:
         self.event_id = memory.event_id
         self.user_id = memory.user_id
         self.text = memory.text
-        self.image_url = memory.image_url
+        self.image_url = memory.s3_url
         self.created_at = memory.created_at
 
     def to_dict(self) -> dict:
@@ -80,7 +80,7 @@ class SearchService:
                     event_id,
                     user_id,
                     text,
-                    image_url,
+                    s3_url,
                     created_at,
                     1 - (embedding <=> :query_embedding) as similarity
                 FROM memories
@@ -160,7 +160,7 @@ class SearchService:
                     m.event_id,
                     m.user_id,
                     m.text,
-                    m.image_url,
+                    m.s3_url,
                     m.created_at,
                     1 - (m.embedding <=> :query_embedding) as similarity
                 FROM memories m
@@ -238,7 +238,7 @@ class SearchService:
                     event_id,
                     user_id,
                     text,
-                    image_url,
+                    s3_url,
                     created_at,
                     1 - (embedding <=> :query_embedding) as similarity
                 FROM memories

@@ -70,7 +70,7 @@ class ImageService:
             return None
 
         try:
-            s3_url = await self.s3_service.upload_file(image_bytes, filename)
+            s3_url = await self.s3_service.upload_image(image_bytes, filename)
             logger.info(f"Uploaded image to S3: {s3_url}")
             return s3_url
         except Exception as e:

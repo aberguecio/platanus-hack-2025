@@ -109,21 +109,29 @@ class TelegramService:
     def format_response(self, text: str, chat_id: int, parse_mode: str = "Markdown") -> Dict[str, Any]:
         """
         Formatea la respuesta en el formato esperado por la API de Telegram Bot.
-        
+
         Args:
             text: Texto de la respuesta
             chat_id: ID del chat al que enviar el mensaje
             parse_mode: Modo de formateo del texto (default: "Markdown")
-            
+
         Returns:
             Dict con el formato de respuesta de Telegram Bot API
         """
-        return {
+        # Disable parse_mode if text contains t.me links to avoid Markdown parsing issues
+        if "t.me/" in text:
+            parse_mode = None
+
+        response = {
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": text,
-            "parse_mode": parse_mode
         }
+
+        if parse_mode:
+            response["parse_mode"] = parse_mode
+
+        return response
 
     def format_error_response(self, status: str = "error", reason: str = "unknown_error") -> Dict[str, str]:
         """
