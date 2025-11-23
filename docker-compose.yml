@@ -122,7 +122,7 @@ services:
       - /app/node_modules
     environment:
       - NEXT_PUBLIC_API_URL=https://ph.berguecio.cl
-    command: sh -c "yarn install && yarn build && yarn start"
+    command: sh -c "yarn install && yarn dev -H 0.0.0.0"
     networks:
       - webapp
     depends_on:
