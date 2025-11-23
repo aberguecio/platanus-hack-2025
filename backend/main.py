@@ -1,4 +1,9 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from the root .env file
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
+
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from database import get_db
@@ -48,3 +53,34 @@ async def telegram_webhook(update: TelegramUpdate, db: Session = Depends(get_db)
     La lógica de procesamiento está ahora encapsulada en MessagingService.
     """
     return await messaging_service.process_response(update, db)
+
+
+# ============================================================================
+# API Endpoints for Frontend
+# ============================================================================
+
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List
+from schemas import Memory as MemorySchema
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/memories", response_model=List[MemorySchema])
+def get_memories(
+    skip: int = 0, 
+    limit: int = 50, 
+    db: Session = Depends(get_db)
+):
+    """
+    Get a list of memories (photos/videos) for the frontend feed.
+    """
+    memories = db.query(Memory).order_by(Memory.created_at.desc()).offset(skip).limit(limit).all()
+    return memories
