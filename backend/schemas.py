@@ -252,6 +252,7 @@ class MessageCreate(MessageBase):
 
 class Message(MessageBase):
     id: int
+    embedding: Optional[List[float]] = None
     created_at: datetime
 
     class Config:

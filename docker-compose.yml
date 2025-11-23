@@ -24,7 +24,14 @@ services:
     environment:
       DATABASE_URL: postgresql://memories_user:memories_pass@db:5432/memories_db
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
     volumes:
       - ./backend:/app
     command: bash entrypoint.sh
@@ -39,6 +46,22 @@ services:
       - "traefik.http.routers.ph-api.entrypoints=websecure"
       - "traefik.http.routers.ph-api.tls=true"
       - "traefik.http.services.ph-api.loadbalancer.server.port=8000"
+
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: telegram_bot
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      API_URL: http://backend:8000/webhook
+    volumes:
+      - ./telegram-bot:/app
+    depends_on:
+      - backend
+    networks:
+      - webapp
+    restart: unless-stopped
 
 volumes:
   postgres_data:

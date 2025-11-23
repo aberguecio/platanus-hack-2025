@@ -20,7 +20,8 @@ class ExecutionContext:
     # Request metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
     
-    # Conversation history (list of messages with role and content)
+    # Conversation context
+    conversation_id: Optional[int] = None
     conversation_history: Optional[List[Dict[str, str]]] = None
 
     # Convenient properties to access common metadata
@@ -47,6 +48,10 @@ class ExecutionContext:
     @property
     def photo_file_id(self) -> Optional[str]:
         return self.metadata.get("photo_file_id")
+
+    @property
+    def message_id(self) -> Optional[int]:
+        return self.metadata.get("message_id")
 
 
 class BaseTool(ABC):
