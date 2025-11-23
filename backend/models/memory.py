@@ -36,7 +36,7 @@ class Memory(Base):
     image_description = Column(Text, nullable=True)
     media_type = Column(Enum(MediaTypeEnum, values_callable=lambda x: [e.value for e in x]), nullable=True)
     memory_metadata = Column(JSONB, nullable=True)
-    embedding = Column(Vector(1024), nullable=True)  # Voyage AI voyage-2 embeddings are 1024 dimensions
+    embedding = Column(Vector(1024), nullable=True)  # Voyage AI voyage-2 embeddings are 1024 dimensionsc #TODO: Modify for improoving model.
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships

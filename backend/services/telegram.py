@@ -242,3 +242,26 @@ class TelegramService:
             "status": status,
             "reason": reason
         }
+
+    async def send_message(self, chat_id: int, text: str, parse_mode: str = "Markdown") -> Dict[str, Any]:
+        """
+        Send a message to a Telegram chat.
+        
+        Args:
+            chat_id: Target chat ID
+            text: Message text
+            parse_mode: Parse mode (Markdown, HTML, etc.)
+            
+        Returns:
+            Response from Telegram API
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": text,
+                    "parse_mode": parse_mode
+                }
+            )
+            return response.json()

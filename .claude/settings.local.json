@@ -3,7 +3,13 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(docker compose:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(sqlite3:*)",
+      "Bash(cat:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker exec:*)",
+      "WebSearch",
+      "Bash(python -m py_compile:*)"
     ],
     "deny": [],
     "ask": []

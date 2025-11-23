@@ -47,6 +47,7 @@ class Event(Base):
     invite_code = Column(String(20), unique=True, index=True, nullable=False, default=generate_invite_code)
     summary = Column(Text, nullable=True)
     ai_context = Column(Text, nullable=True)
+    generated_narrative = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
