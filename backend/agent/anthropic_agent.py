@@ -54,13 +54,26 @@ class AnthropicAgent(LLMAgent):
             has_photo=ctx.has_photo
         )
 
+        print(f"[AGENT] System prompt length: {len(system_prompt)} chars")
+
         # Initialize message history for the conversation
-        messages = [
-            {
-                "role": "user",
-                "content": user_message
-            }
-        ]
+        messages = []
+
+        # Include conversation history for context (if available)
+        if ctx.conversation_history and len(ctx.conversation_history) > 0:
+            for msg in ctx.conversation_history:
+                messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+
+        # Add current user message
+        messages.append({
+            "role": "user",
+            "content": user_message
+        })
+
+        print(f"[AGENT] 🎃 Total messages in context: {len(messages)}")
 
         # Tool execution loop
         max_iterations = 5  # Prevent infinite loops
@@ -85,7 +98,6 @@ class AnthropicAgent(LLMAgent):
                 # No tools needed, extract final text response
                 text_blocks = [block for block in response.content if block.type == "text"]
                 final_text = text_blocks[0].text if text_blocks else "Done!"
-                print(f"[AGENT] Final response: {final_text}")
                 return final_text
 
             # Claude wants to use tools - execute them
