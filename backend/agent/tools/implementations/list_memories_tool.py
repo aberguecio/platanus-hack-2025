@@ -58,10 +58,12 @@ class ListMemoriesTool(BaseTool):
             memories_list.append(
                 {
                     "id": m.id,
-                    "text": m.text or "(photo only)",
+                    "text": m.text or "(media only)",
                     "user": m.user.first_name,
-                    "image_url": image_url,
-                    "has_image": bool(m.s3_url),
+                    "media_url": image_url,
+                    "has_media": bool(m.s3_url),
+                    "media_type": m.media_type,
+                    "image_description": m.image_description,
                     "created_at": m.created_at.isoformat() if m.created_at else None,
                 }
             )

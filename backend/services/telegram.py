@@ -64,6 +64,7 @@ class TelegramService:
         caption = message.caption or ""
         photo = message.photo
         voice = message.voice
+        video = message.video
 
         # DEBUG LOGS
         print(f"\n[TELEGRAM_SERVICE] Received update:")
@@ -71,6 +72,7 @@ class TelegramService:
         print(f"[TELEGRAM_SERVICE] - message.caption: '{caption}'")
         print(f"[TELEGRAM_SERVICE] - message.photo: {bool(photo)} (count: {len(photo) if photo else 0})")
         print(f"[TELEGRAM_SERVICE] - message.voice: {bool(voice)}")
+        print(f"[TELEGRAM_SERVICE] - message.video: {bool(video)}")
 
         # Handle photo if present
         photo_file_id = None
@@ -86,6 +88,14 @@ class TelegramService:
             print(f"[TELEGRAM_SERVICE] - voice_file_id: {voice_file_id}")
             print(f"[TELEGRAM_SERVICE] - voice duration: {voice.duration}s")
 
+        # Handle video if present
+        video_file_id = None
+        if video:
+            video_file_id = video.file_id
+            print(f"[TELEGRAM_SERVICE] - video_file_id: {video_file_id}")
+            print(f"[TELEGRAM_SERVICE] - video duration: {video.duration}s")
+            print(f"[TELEGRAM_SERVICE] - video size: {video.file_size} bytes")
+
         # Determine final text to process
         # Handle voice transcription
         transcribed_audio = None
@@ -93,7 +103,7 @@ class TelegramService:
             transcribed_audio = await self._transcribe_voice(voice_file_id)
         
         # Handle text/caption (even if there's audio)
-        message_text = self._determine_message_text(text, caption, photo)
+        message_text = self._determine_message_text(text, caption, photo or video)
         
         # Combine audio transcription with text/caption if both exist
         if transcribed_audio and message_text and message_text.strip():
@@ -108,6 +118,7 @@ class TelegramService:
 
         print(f"[TELEGRAM_SERVICE] Final text to process: '{final_text}'")
         print(f"[TELEGRAM_SERVICE] Has photo: {bool(photo)}")
+        print(f"[TELEGRAM_SERVICE] Has video: {bool(video)}")
         print(f"[TELEGRAM_SERVICE] Has voice: {bool(voice)}\n")
 
         return {
@@ -119,6 +130,8 @@ class TelegramService:
             "text": final_text,
             "has_photo": bool(photo),
             "photo_file_id": photo_file_id,
+            "has_video": bool(video),
+            "video_file_id": video_file_id,
             "has_voice": bool(voice),
             "voice_file_id": voice_file_id
         }

@@ -6,7 +6,7 @@ import asyncio
 class MessageBatcher:
     """Agrupa mensajes por usuario con ventana de tiempo"""
 
-    def __init__(self, redis_pool: ArqRedis, delay_seconds: float = 12.5):
+    def __init__(self, redis_pool: ArqRedis, delay_seconds: float = 5):
         self.redis = redis_pool
         self.delay = delay_seconds
         self.pending_jobs = {}  # {user_id: job_id}

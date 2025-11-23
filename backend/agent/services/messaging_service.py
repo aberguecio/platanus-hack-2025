@@ -121,6 +121,7 @@ class MessagingService:
                 direction=MessageDirectionEnum.USER,
                 content=message_data["text"],
                 photo_file_id=message_data.get("photo_file_id"),
+                video_file_id=message_data.get("video_file_id"),
                 telegram_service=self.telegram_service,
                 image_service=self.image_service,
                 s3_service=self.s3_service
@@ -224,6 +225,8 @@ class MessagingService:
             "last_name": message_data["last_name"],
             "has_photo": message_data["has_photo"],
             "photo_file_id": message_data["photo_file_id"],
+            "has_video": message_data.get("has_video", False),
+            "video_file_id": message_data.get("video_file_id"),
             "message_id": message_id
         }
 
@@ -312,6 +315,7 @@ También puedes enviarme fotos directamente 📸"""
         # Extraer info de todos los updates
         texts = []
         photos = []
+        videos = []
         user_info = None
         chat_id = None
 
@@ -322,11 +326,12 @@ También puedes enviarme fotos directamente 📸"""
                 user_info = msg.get("from", {})
                 chat_id = msg.get("chat", {}).get("id")
 
-            # Extraer texto
-            if text := msg.get("text"):
+            # Extraer texto o caption
+            text_content = msg.get("text") or msg.get("caption")
+            if text_content:
                 # Filtrar comandos /start
-                if not text.startswith("/"):
-                    texts.append(text)
+                if not text_content.startswith("/"):
+                    texts.append(text_content)
 
             # Extraer foto (usar la más grande)
             if photo_list := msg.get("photo"):
@@ -337,6 +342,15 @@ También puedes enviarme fotos directamente 📸"""
                     "file_size": largest.get("file_size", 0)
                 })
 
+            # Extraer video
+            if video := msg.get("video"):
+                videos.append({
+                    "file_id": video["file_id"],
+                    "message_id": msg.get("message_id"),
+                    "file_size": video.get("file_size", 0),
+                    "duration": video.get("duration", 0)
+                })
+
         # Validar que tenemos info de usuario
         if not user_info or not chat_id:
             print("[MESSAGING_SERVICE] No user info found in batch")
@@ -344,10 +358,15 @@ También puedes enviarme fotos directamente 📸"""
 
         # Construir contenido combinado
         combined_text = "\n".join(texts) if texts else ""
-        if not combined_text and not photos:
-            combined_text = ""  # Mensaje vacío con fotos
+        
+        # Si no hay texto pero hay media, usar un placeholder para que el agente no lo rechace
+        if not combined_text:
+            if videos:
+                combined_text = "[VIDEO]"
+            elif photos:
+                combined_text = "[FOTO]"
 
-        print(f"[MESSAGING_SERVICE] Batch: {len(texts)} texts, {len(photos)} photos")
+        print(f"[MESSAGING_SERVICE] Batch: {len(texts)} texts, {len(photos)} photos, {len(videos)} videos")
 
         # Obtener o crear usuario
         user = self.database_service.get_or_create_user(
@@ -366,14 +385,17 @@ También puedes enviarme fotos directamente 📸"""
         )
 
         # Guardar mensaje agregado en DB
-        # Solo guardar la primera foto en el mensaje (las demás se pasan en batch_photos)
+        # Solo guardar la primera foto/video en el mensaje (las demás se pasan en batch_photos/videos)
         message = await self.database_service.save_message(
             db=db,
             conversation_id=conversation.id,
             direction=MessageDirectionEnum.USER,
-            content=combined_text if combined_text else "[Fotos]",
+            content=combined_text if combined_text else ("[Videos]" if videos else "[Fotos]"),
             photo_file_id=photos[0]["file_id"] if photos else None,
-            image_service=self.image_service if photos else None
+            video_file_id=videos[0]["file_id"] if videos else None,
+            telegram_service=self.telegram_service,
+            image_service=self.image_service if photos else None,
+            s3_service=self.s3_service
         )
 
         # Construir contexto conversacional
@@ -395,13 +417,19 @@ También puedes enviarme fotos directamente 📸"""
         ] if len(recent_messages) > 1 else []
 
         # Construir ExecutionContext para batch
+        # Incluir video en metadata si existe
+        has_video = bool(videos)
+        video_file_id = videos[0]["file_id"] if videos else None
+
         metadata = {
             "telegram_id": str(user_info["id"]),
             "username": user_info.get("username"),
             "first_name": user_info.get("first_name"),
             "last_name": user_info.get("last_name"),
-            "has_photo": len(photos) > 0,
+            "has_photo": bool(photos),
             "photo_file_id": photos[0]["file_id"] if photos else None,
+            "has_video": has_video,
+            "video_file_id": video_file_id,
             "message_id": message.id
         }
 

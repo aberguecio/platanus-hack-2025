@@ -47,6 +47,19 @@ class Voice(BaseModel):
     file_size: Optional[int] = None
 
 
+class Video(BaseModel):
+    """Telegram video object"""
+    file_id: str
+    file_unique_id: str
+    width: int
+    height: int
+    duration: int
+    mime_type: Optional[str] = None
+    file_size: Optional[int] = None
+    thumb: Optional[PhotoSize] = None  # Thumbnail del video
+
+
+
 class TelegramMessage(BaseModel):
     """Telegram message object"""
     message_id: int
@@ -57,6 +70,7 @@ class TelegramMessage(BaseModel):
     text: Optional[str] = None
     photo: Optional[List[PhotoSize]] = None
     voice: Optional[Voice] = None
+    video: Optional[Video] = None
     caption: Optional[str] = None
 
     class Config:

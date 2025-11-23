@@ -24,7 +24,7 @@ async def startup(application):
     global redis_pool, message_batcher
     print("[BOT] Initializing ARQ Redis pool...")
     redis_pool = await create_pool(RedisSettings(host="redis", port=6379))
-    message_batcher = MessageBatcher(redis_pool, delay_seconds=12.5)
+    message_batcher = MessageBatcher(redis_pool, delay_seconds=5)
     print("[BOT] ARQ Redis pool initialized")
 
 async def shutdown(application):
@@ -82,6 +82,7 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(MessageHandler(filters.PHOTO, handle_message))
     application.add_handler(MessageHandler(filters.VOICE, handle_message))
+    application.add_handler(MessageHandler(filters.VIDEO, handle_message))
 
     # Start polling
     print("Bot is running with message batching! Press Ctrl+C to stop.")
