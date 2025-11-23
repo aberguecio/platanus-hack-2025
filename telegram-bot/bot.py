@@ -75,6 +75,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(MessageHandler(filters.PHOTO, handle_message))
+    application.add_handler(MessageHandler(filters.VOICE, handle_message))
 
     # Start polling
     print("Bot is running! Press Ctrl+C to stop.")

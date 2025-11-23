@@ -6,9 +6,17 @@ from schemas import TelegramUpdate
 class TelegramService:
     """Service for handling Telegram operations and message processing"""
 
-    def __init__(self, bot_token: str):
+    def __init__(self, bot_token: str, speech_service=None):
+        """
+        Initialize Telegram Service.
+
+        Args:
+            bot_token: Telegram bot token
+            speech_service: SpeechService for voice transcription (optional)
+        """
         self.bot_token = bot_token
         self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
+        self.speech_service = speech_service
 
     async def download_file(self, file_id: str) -> bytes:
         """Download a file from Telegram"""
@@ -26,10 +34,13 @@ class TelegramService:
             )
             return file_response.content
 
-    def extract_message_data(self, update: TelegramUpdate) -> Optional[Dict[str, Any]]:
+    async def extract_message_data(self, update: TelegramUpdate) -> Optional[Dict[str, Any]]:
         """
         Extrae y procesa los datos del mensaje de Telegram.
-        
+
+        Maneja texto, fotos y mensajes de voz.
+        Los audios se transcriben automáticamente a texto.
+
         Returns:
             Dict con los datos extraídos del mensaje, o None si no hay mensaje válido
         """
@@ -52,12 +63,14 @@ class TelegramService:
         text = message.text or ""
         caption = message.caption or ""
         photo = message.photo
+        voice = message.voice
 
         # DEBUG LOGS
         print(f"\n[TELEGRAM_SERVICE] Received update:")
         print(f"[TELEGRAM_SERVICE] - message.text: '{text}'")
         print(f"[TELEGRAM_SERVICE] - message.caption: '{caption}'")
         print(f"[TELEGRAM_SERVICE] - message.photo: {bool(photo)} (count: {len(photo) if photo else 0})")
+        print(f"[TELEGRAM_SERVICE] - message.voice: {bool(voice)}")
 
         # Handle photo if present
         photo_file_id = None
@@ -66,11 +79,36 @@ class TelegramService:
             photo_file_id = largest_photo.file_id
             print(f"[TELEGRAM_SERVICE] - photo_file_id: {photo_file_id}")
 
+        # Handle voice if present
+        voice_file_id = None
+        if voice:
+            voice_file_id = voice.file_id
+            print(f"[TELEGRAM_SERVICE] - voice_file_id: {voice_file_id}")
+            print(f"[TELEGRAM_SERVICE] - voice duration: {voice.duration}s")
+
         # Determine final text to process
-        final_text = self._determine_message_text(text, caption, photo)
+        # Handle voice transcription
+        transcribed_audio = None
+        if voice_file_id:
+            transcribed_audio = await self._transcribe_voice(voice_file_id)
         
+        # Handle text/caption (even if there's audio)
+        message_text = self._determine_message_text(text, caption, photo)
+        
+        # Combine audio transcription with text/caption if both exist
+        if transcribed_audio and message_text and message_text.strip():
+            # If there's both audio and text/caption, combine them
+            final_text = f"{transcribed_audio}\n\n{message_text}"
+        elif transcribed_audio:
+            # Only audio
+            final_text = transcribed_audio
+        else:
+            # Only text/caption
+            final_text = message_text
+
         print(f"[TELEGRAM_SERVICE] Final text to process: '{final_text}'")
-        print(f"[TELEGRAM_SERVICE] Has photo: {bool(photo)}\n")
+        print(f"[TELEGRAM_SERVICE] Has photo: {bool(photo)}")
+        print(f"[TELEGRAM_SERVICE] Has voice: {bool(voice)}\n")
 
         return {
             "telegram_id": telegram_id,
@@ -80,18 +118,61 @@ class TelegramService:
             "chat_id": chat_id,
             "text": final_text,
             "has_photo": bool(photo),
-            "photo_file_id": photo_file_id
+            "photo_file_id": photo_file_id,
+            "has_voice": bool(voice),
+            "voice_file_id": voice_file_id
         }
+
+    async def _transcribe_voice(self, voice_file_id: str) -> str:
+        """
+        Download and transcribe voice message.
+
+        Args:
+            voice_file_id: Telegram voice file ID
+
+        Returns:
+            Transcribed text with [Audio transcrito] prefix
+        """
+        if not self.speech_service:
+            print("[TELEGRAM_SERVICE] ⚠️ SpeechService not available, cannot transcribe")
+            return "[Usuario envió un audio - SpeechService no está configurado]"
+
+        try:
+            print(f"[TELEGRAM_SERVICE] 🎤 Downloading voice message...")
+
+            # Download voice from Telegram
+            voice_bytes = await self.download_file(voice_file_id)
+
+            print(f"[TELEGRAM_SERVICE] Voice downloaded: {len(voice_bytes)} bytes")
+            print(f"[TELEGRAM_SERVICE] Transcribing with Whisper...")
+
+            # Transcribe with Whisper
+            transcribed_text = self.speech_service.transcribe_audio(voice_bytes, language="es")
+
+            # Add prefix to indicate it was transcribed
+            final_text = f"[Audio transcrito]: {transcribed_text}"
+
+            print(f"[TELEGRAM_SERVICE] ✅ Transcription complete: {transcribed_text[:80]}...")
+
+            return final_text
+
+        except Exception as e:
+            print(f"[TELEGRAM_SERVICE] ❌ Error transcribing voice: {e}")
+            import traceback
+            traceback.print_exc()
+
+            # Return fallback message
+            return "[Usuario envió un audio que no pude transcribir]"
 
     def _determine_message_text(self, text: str, caption: str, photo: Any) -> str:
         """
         Determina el texto final a procesar basado en el contenido del mensaje.
-        
+
         Args:
             text: Texto del mensaje
             caption: Caption de la foto (si existe)
             photo: Objeto photo del mensaje
-            
+
         Returns:
             El texto final a procesar
         """
@@ -103,7 +184,7 @@ class TelegramService:
             # If user sent only a photo without text/caption, create a default message
             print(f"[TELEGRAM_SERVICE] Photo without caption, using default message")
             return "I sent you a photo. Please help me save it as a memory."
-        
+
         return text
 
     def format_response(self, text: str, chat_id: int, parse_mode: str = "Markdown") -> Dict[str, Any]:
