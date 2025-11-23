@@ -19,6 +19,7 @@ class Memory(Base):
         message_id: Optional foreign key to Message that created this memory
         text: Optional text content of the memory
         s3_url: Optional URL to media stored in S3
+        image_description: Optional AI-generated description of the image
         media_type: Type of media (image, video, audio, text, document)
         memory_metadata: Flexible JSONB field for additional metadata
         embedding: Vector embedding for semantic search (1024 dimensions)
@@ -32,6 +33,7 @@ class Memory(Base):
     message_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
     text = Column(Text, nullable=True)
     s3_url = Column(String, nullable=True)
+    image_description = Column(Text, nullable=True)
     media_type = Column(Enum(MediaTypeEnum, values_callable=lambda x: [e.value for e in x]), nullable=True)
     memory_metadata = Column(JSONB, nullable=True)
     embedding = Column(Vector(1024), nullable=True)  # Voyage AI voyage-2 embeddings are 1024 dimensions

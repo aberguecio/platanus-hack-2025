@@ -15,6 +15,7 @@ class ExecutionContext:
     # External services (optional, depending on the tool)
     s3_service: Optional[Any] = None
     telegram_service: Optional[Any] = None
+    image_service: Optional[Any] = None
 
     # Request metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
