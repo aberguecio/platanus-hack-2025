@@ -326,11 +326,12 @@ También puedes enviarme fotos directamente 📸"""
                 user_info = msg.get("from", {})
                 chat_id = msg.get("chat", {}).get("id")
 
-            # Extraer texto
-            if text := msg.get("text"):
+            # Extraer texto o caption
+            text_content = msg.get("text") or msg.get("caption")
+            if text_content:
                 # Filtrar comandos /start
-                if not text.startswith("/"):
-                    texts.append(text)
+                if not text_content.startswith("/"):
+                    texts.append(text_content)
 
             # Extraer foto (usar la más grande)
             if photo_list := msg.get("photo"):
