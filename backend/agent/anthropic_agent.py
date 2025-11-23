@@ -18,7 +18,7 @@ class AnthropicAgent(LLMAgent):
             raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
         self.client = Anthropic(api_key=self.api_key)
-        self.model = "claude-haiku-4-5-20251001" #"claude-3-haiku-20240307"
+        self.model = "claude-sonnet-4-5" #"claude-haiku-4-5-20251001" #"claude-3-haiku-20240307"
         self.prompt_builder = get_prompt_builder()
 
     async def _build_message_content(
@@ -51,6 +51,7 @@ class AnthropicAgent(LLMAgent):
         
         # Build multimodal message with image + text
         print("[AGENT] Building multimodal message with image and text")
+
         return [
             {
                 "type": "image",

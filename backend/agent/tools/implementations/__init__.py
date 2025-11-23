@@ -10,6 +10,7 @@ from .list_events_tool import ListEventsTool
 from .list_memories_tool import ListMemoriesTool
 from .get_faq_tool import GetFaqTool
 from .generate_invite_link_tool import GenerateInviteLinkTool
+from .summarize_event_tool import SummarizeEventTool
 
 
 def register_all_tools():
@@ -25,6 +26,7 @@ def register_all_tools():
     registry.register(ListMemoriesTool())
     registry.register(GetFaqTool())
     registry.register(GenerateInviteLinkTool())
+    registry.register(SummarizeEventTool())
 
     print(f"[TOOLS] All tools registered successfully")
 
