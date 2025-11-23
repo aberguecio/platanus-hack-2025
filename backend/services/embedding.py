@@ -10,7 +10,7 @@ class EmbeddingService:
     """Service for generating embeddings using Voyage AI"""
 
     _client = None
-    _model = "voyage-3-large" # "voyage-2"
+    _model = "voyage-2" #"voyage-3-large" # "voyage-2"
 
     @classmethod
     def _get_client(cls) -> voyageai.Client:
