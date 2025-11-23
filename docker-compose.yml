@@ -42,7 +42,7 @@ services:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ph-api.rule=Host(`ph.berguecio.cl`) && PathPrefix(`/api`, `/webhook`, `/health`, `/docs`, `/openapi.json`)"
+      - "traefik.http.routers.ph-api.rule=Host(`ph.berguecio.cl`) && (PathPrefix(`/api`) || PathPrefix(`/webhook`) || PathPrefix(`/health`) || PathPrefix(`/docs`) || PathPrefix(`/openapi.json`))"
       - "traefik.http.routers.ph-api.entrypoints=websecure"
       - "traefik.http.routers.ph-api.tls=true"
       - "traefik.http.services.ph-api.loadbalancer.server.port=8000"
@@ -134,7 +134,6 @@ services:
       - "traefik.http.routers.ph-frontend.entrypoints=websecure"
       - "traefik.http.routers.ph-frontend.tls=true"
       - "traefik.http.services.ph-frontend.loadbalancer.server.port=3000"
-      - "traefik.http.routers.ph-frontend.priority=1"
 
 volumes:
   postgres_data:
