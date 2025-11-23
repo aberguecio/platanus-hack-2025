@@ -19,7 +19,6 @@ class AnthropicAgent(LLMAgent):
 
         self.client = Anthropic(api_key=self.api_key)
 
-        # Get model from manifest config, fallback to sonnet
         self.prompt_builder = get_prompt_builder()
         self.model = self.prompt_builder.get_config("settings", {}).get("model", "claude-sonnet-4-5-20250929")
 
@@ -53,6 +52,7 @@ class AnthropicAgent(LLMAgent):
         
         # Build multimodal message with image + text
         print("[AGENT] Building multimodal message with image and text")
+
         return [
             {
                 "type": "image",
