@@ -6,8 +6,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy bot code
-COPY bot.py .
+# Copy all bot code (bot, worker, batcher)
+COPY . .
 
-# Run bot
+# Default: Run bot (worker runs in separate container)
 CMD ["python", "bot.py"]

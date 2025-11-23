@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 # Load environment variables from the root .env file
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
+from typing import List, Dict, Any
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from database import get_db
@@ -14,6 +15,7 @@ from services import DatabaseService, TelegramService, S3Service
 from services.embedding import EmbeddingService
 from services.image import ImageService
 from services.search import SearchService
+from services.speech import SpeechService
 from schemas import TelegramUpdate
 # Import models to ensure SQLAlchemy recognizes them
 from models import User, Event, Memory, Message, LoginRequest
@@ -27,7 +29,25 @@ app = FastAPI(title="Memories Bot API", version="1.0.0")
 # Initialize services
 agent = AnthropicAgent()
 s3_service = S3Service()
-telegram_service = TelegramService(os.getenv("TELEGRAM_BOT_TOKEN", ""))
+
+# Initialize SpeechService if OpenAI API key is available
+speech_service = None
+try:
+    speech_service = SpeechService()
+    print("[MAIN] SpeechService initialized - voice messages will be transcribed")
+except ValueError as e:
+    print(f"[MAIN] SpeechService not initialized: {e}")
+    print("[MAIN] Voice messages will not be transcribed")
+
+telegram_service = TelegramService(
+    bot_token=os.getenv("TELEGRAM_BOT_TOKEN", ""),
+    speech_service=speech_service
+)
+
+image_service = ImageService(
+    telegram_service=telegram_service,
+    s3_service=s3_service
+)
 
 # Get tool registry (tools are auto-registered on import)
 tool_registry = get_registry()
@@ -37,7 +57,8 @@ messaging_service = MessagingService(
     agent=agent,
     telegram_service=telegram_service,
     database_service=DatabaseService,
-    s3_service=s3_service
+    s3_service=s3_service,
+    image_service=image_service
 )
 
 
@@ -186,3 +207,38 @@ def verify(payload: VerifyPayload, db: Session = Depends(get_db)):
             "telegram_id": user.telegram_id
         }
     }
+@app.post("/webhook/batch")
+async def webhook_batch(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """
+    Batch webhook endpoint que recibe múltiples updates de Telegram agrupados.
+
+    Este endpoint es llamado por el ARQ worker después de que expira la ventana
+    de agrupación (12.5 segundos). Procesa todos los mensajes como un solo batch,
+    lo cual es especialmente útil para múltiples fotos.
+
+    Args:
+        payload: Dict con 'updates' (lista de Telegram updates) y 'user_id'
+        db: Database session
+
+    Returns:
+        Dict con método y respuesta de Telegram Bot API
+    """
+    updates = payload.get("updates", [])
+    user_id = payload.get("user_id")
+
+    if not updates:
+        return {"error": "No updates provided"}
+
+    print(f"[BATCH] Processing {len(updates)} messages for user {user_id}")
+
+    # Procesar batch usando MessagingService
+    response = await messaging_service.process_message_batch(
+        updates=updates,
+        db=db
+    )
+
+    print(f"[BATCH] Batch processed successfully")
+    return response

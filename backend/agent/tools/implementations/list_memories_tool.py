@@ -40,8 +40,8 @@ class ListMemoriesTool(BaseTool):
         memories_list = []
         for m in memories:
             # Generate presigned URL if image is stored in S3
-            image_url = m.image_url
-            print(f"[TOOL] list_memories - original image_url: {image_url}")
+            image_url = m.s3_url
+            print(f"[TOOL] list_memories - original s3_url: {image_url}")
 
             if image_url and image_url.startswith("s3://"):
                 if ctx.s3_service:
@@ -61,7 +61,7 @@ class ListMemoriesTool(BaseTool):
                     "text": m.text or "(photo only)",
                     "user": m.user.first_name,
                     "image_url": image_url,
-                    "has_image": bool(m.image_url),
+                    "has_image": bool(m.s3_url),
                     "created_at": m.created_at.isoformat() if m.created_at else None,
                 }
             )

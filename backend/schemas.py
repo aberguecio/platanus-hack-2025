@@ -38,6 +38,15 @@ class PhotoSize(BaseModel):
     file_size: Optional[int] = None
 
 
+class Voice(BaseModel):
+    """Telegram voice message object"""
+    file_id: str
+    file_unique_id: str
+    duration: int
+    mime_type: Optional[str] = None
+    file_size: Optional[int] = None
+
+
 class TelegramMessage(BaseModel):
     """Telegram message object"""
     message_id: int
@@ -47,6 +56,7 @@ class TelegramMessage(BaseModel):
     chat: TelegramChat
     text: Optional[str] = None
     photo: Optional[List[PhotoSize]] = None
+    voice: Optional[Voice] = None
     caption: Optional[str] = None
 
     class Config:
@@ -252,6 +262,7 @@ class MessageCreate(MessageBase):
 
 class Message(MessageBase):
     id: int
+    embedding: Optional[List[float]] = None
     created_at: datetime
 
     class Config:

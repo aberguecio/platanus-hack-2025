@@ -1,0 +1,69 @@
+[
+  {
+    "scenario": "Continuous photo upload to same event (within 10 messages)",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "sube a cumpleaños",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "add_memory", "event_id": 3}],
+        "response": "Guardada en 'Cumpleaños'!"
+      },
+      {
+        "role": "user",
+        "content": "genial"
+      },
+      {
+        "role": "assistant",
+        "response": "📸 Cuando tengas más, me las mandas"
+      },
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "thinking": "User uploaded to 'Cumpleaños' 2 messages ago. Within context window (10 msgs). Continue using same event.",
+        "tool_calls": [{"tool": "add_memory", "event_id": 3}],
+        "response": "Otra más en 'Cumpleaños' ✨"
+      }
+    ]
+  },
+  {
+    "scenario": "Event mention in conversation flow",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "tengo unas fotos del asado con los amigos"
+      },
+      {
+        "role": "assistant",
+        "response": "Bacán! ¿Ya tienes un evento para eso o creo uno nuevo?"
+      },
+      {
+        "role": "user",
+        "content": "crea uno"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "create_event", "name": "Asado con amigos"}],
+        "response": "Listo, creé 'Asado con amigos'"
+      },
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "thinking": "Clear context: we just created 'Asado con amigos' for these photos.",
+        "tool_calls": [{"tool": "add_memory"}],
+        "response": "Guardada!"
+      }
+    ]
+  }
+]

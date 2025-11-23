@@ -1,9 +1,11 @@
 import os
 import json
-from typing import Optional
+import base64
+from typing import Optional, Dict, Any, List
 from anthropic import Anthropic
 from .base import LLMAgent
 from .tools import get_registry, ExecutionContext
+from .prompts.prompt_builder_v2 import get_prompt_builder
 
 class AnthropicAgent(LLMAgent):
     """
@@ -16,7 +18,95 @@ class AnthropicAgent(LLMAgent):
             raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
         self.client = Anthropic(api_key=self.api_key)
-        self.model = "claude-haiku-4-5-20251001" #"claude-3-haiku-20240307"
+
+        self.prompt_builder = get_prompt_builder()
+        self.model = self.prompt_builder.get_config("settings", {}).get("model", "claude-sonnet-4-5-20250929")
+
+    async def _build_message_content(
+        self,
+        text: str,
+        photo_file_id: Optional[str],
+        telegram_service
+    ) -> Any:
+        """
+        Build message content, either simple text or multimodal (image + text).
+
+        Args:
+            text: Text message from user
+            photo_file_id: Optional Telegram file_id for photo
+            telegram_service: TelegramService for downloading photos
+
+        Returns:
+            Either a string (text only) or a list of content blocks (multimodal)
+        """
+        # If no photo, return simple text
+        if not photo_file_id or not telegram_service:
+            return text
+
+        # Download and encode photo
+        image_data = await self._download_and_encode_photo(photo_file_id, telegram_service)
+
+        if not image_data:
+            print("[AGENT] Failed to download photo, using text-only message")
+            return text
+
+        # Build multimodal message with image + text
+        print("[AGENT] Building multimodal message with image and text")
+
+        return [
+            {
+                "type": "image",
+                "source": image_data
+            },
+            {
+                "type": "text",
+                "text": text
+            }
+        ]
+
+    async def _download_and_encode_photo(self, file_id: str, telegram_service) -> Dict[str, Any]:
+        """
+        Download photo from Telegram and encode to base64.
+
+        Returns:
+            Dict with base64 data and media_type for Claude API
+        """
+        try:
+            print(f"[AGENT] Downloading photo from Telegram: {file_id}")
+            image_bytes = await telegram_service.download_file(file_id)
+            print(f"[AGENT] Photo downloaded, size: {len(image_bytes)} bytes")
+
+            # Encode to base64
+            base64_image = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+            # Detect media type
+            media_type = self._detect_image_format(image_bytes)
+            print(f"[AGENT] Image format detected: {media_type}")
+
+            return {
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64_image
+            }
+        except Exception as e:
+            print(f"[AGENT] Error downloading/encoding photo: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    @staticmethod
+    def _detect_image_format(image_bytes: bytes) -> str:
+        """Detect image format from magic bytes."""
+        if image_bytes[:2] == b'\xff\xd8':
+            return "image/jpeg"
+        elif image_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+            return "image/png"
+        elif image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
+            return "image/webp"
+        elif image_bytes[:6] in (b'GIF87a', b'GIF89a'):
+            return "image/gif"
+        else:
+            return "image/jpeg"  # Default
 
     async def process_message(
         self,
@@ -44,81 +134,54 @@ class AnthropicAgent(LLMAgent):
         registry = get_registry()
         tools = registry.get_schemas()
 
-        # Build system prompt with context
-        has_photo = ctx.has_photo
-        photo_context = "\n- USER HAS SENT A PHOTO! They want to save it as a memory." if has_photo else ""
+        # Build system prompt with new V2 builder (always include examples)
+        system_prompt = self.prompt_builder.build_system_prompt(
+            telegram_id=ctx.telegram_id,
+            username=ctx.username,
+            first_name=ctx.first_name,
+            has_photo=ctx.has_photo,
+            conversation_history=ctx.conversation_history,
+            include_examples=True  # Always include for consistent behavior
+        )
 
-        # Extract conversation history from context
-        conversation_history = ctx.conversation_history or []
-        
-        # Build conversation history section if available
-        history_section = ""
-        if conversation_history:
-            history_text = "\n".join([
-                f"{'Usuario' if msg['role'] == 'user' else 'Asistente'}: {msg['content']}"
-                for msg in conversation_history  # Already in chronological order (oldest first)
-            ])
-            history_section = f"""
+        print(f"[AGENT] System prompt length: {len(system_prompt)} chars")
 
-Conversación reciente con este usuario:
-{history_text}
+        # Initialize message history with smart formatting
+        messages = []
 
-Usa este contexto para dar respuestas más naturales y coherentes, recordando lo que se habló anteriormente.
-"""
+        # Use the new context manager to format conversation history
+        if ctx.conversation_history and len(ctx.conversation_history) > 0:
+            formatted_history = self.prompt_builder.format_conversation_history(
+                ctx.conversation_history,
+                total_message_count=len(ctx.conversation_history)
+            )
+            messages.extend(formatted_history)
 
-        system_prompt = f"""You are a helpful assistant for a memories storage bot on Telegram.
-Users can create events and store memories (photos and text) in them.
+        # Add current user message (with photo if present)
+        # For batch processing, add info about additional photos
+        if ctx.is_batch and ctx.batch_photos and len(ctx.batch_photos) > 1:
+            # Build list of all photo file_ids for the agent
+            photo_ids = [photo["file_id"] for photo in ctx.batch_photos]
+            batch_info = f"\n\n[SISTEMA: El usuario envió {len(ctx.batch_photos)} fotos. Debes guardar TODAS usando add_memory con estos photo_file_id:\n"
+            for i, file_id in enumerate(photo_ids, 1):
+                batch_info += f"- Foto {i}: {file_id}\n"
+            batch_info += "Usa el parámetro 'photo_file_id' en add_memory para especificar cada foto.]"
+            user_message_with_batch = user_message + batch_info
+        else:
+            user_message_with_batch = user_message
 
-Current user context:
-- Telegram ID: {ctx.telegram_id or 'unknown'}
-- Username: {ctx.username or 'unknown'}
-- First name: {ctx.first_name or 'unknown'}{photo_context}
+        current_message_content = await self._build_message_content(
+            user_message_with_batch,
+            ctx.photo_file_id,
+            ctx.telegram_service
+        )
 
-Your job is to:
-1. Understand what the user wants to do
-2. Call the appropriate tool with the right parameters
-3. Provide a friendly response based on the tool results
+        messages.append({
+            "role": "user",
+            "content": current_message_content
+        })
 
-Available actions:
-- create_event: Create a new event
-- join_event: Join an existing event
-- add_memory: Add a memory to an event (use this when user sends a photo!)
-- list_events: Show user's events
-- list_memories: Show memories from an event
-- get_faq: Get help and instructions (use when user asks "how to", "help", "how do I", etc.)
-
-IMPORTANT PHOTO HANDLING:
-When the user has sent a photo (indicated above), they want to save it as a memory. Look for:
-- Event names or IDs in their message: "sube a hackaton", "add to event #1", "save to birthday"
-- If you can identify the event, use add_memory tool immediately
-- Use list_events first if you need to find the event ID by name
-- DO NOT use get_faq when they've sent a photo - they want ACTION, not help!
-
-Examples with photos:
-- "Sube a hackaton" + photo → list_events to find "hackaton", then add_memory to that event
-- "Add to event #1" + photo → add_memory with event_id=1
-- Photo only → ask which event they want to add it to
-
-When user asks questions (WITHOUT photo) like:
-- "How do I upload a photo?" → use get_faq with topic "upload_image"
-- "How to invite someone?" → use get_faq with topic "invite_user"
-- "Help" → use get_faq with topic "general"
-
-When showing memories with images:
-- The image_url field will contain a presigned URL that's valid for 1 hour
-- You can include the URL in your response so users can view the photo
-- Format: "📸 [View photo](URL)" in markdown
-
-When you use a tool, wait for the result before responding to the user.{history_section}
-"""
-
-        # Initialize message history for the conversation
-        messages = [
-            {
-                "role": "user",
-                "content": user_message
-            }
-        ]
+        print(f"[AGENT] 🎃 Total messages in context: {len(messages)}")
 
         # Tool execution loop
         max_iterations = 5  # Prevent infinite loops
@@ -143,7 +206,6 @@ When you use a tool, wait for the result before responding to the user.{history_
                 # No tools needed, extract final text response
                 text_blocks = [block for block in response.content if block.type == "text"]
                 final_text = text_blocks[0].text if text_blocks else "Done!"
-                print(f"[AGENT] Final response: {final_text}")
                 return final_text
 
             # Claude wants to use tools - execute them

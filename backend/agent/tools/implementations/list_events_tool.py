@@ -27,7 +27,13 @@ class ListEventsTool(BaseTool):
             return {"success": True, "message": "No events yet.", "events": []}
 
         events_list = [
-            {"id": e.id, "name": e.name, "description": e.description} for e in events
+            {
+                "id": e.id,
+                "name": e.name,
+                "description": e.description,
+                "invite_code": e.invite_code
+            }
+            for e in events
         ]
 
         return {
