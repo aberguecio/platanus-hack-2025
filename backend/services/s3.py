@@ -52,6 +52,35 @@ class S3Service:
         # Return the S3 key (we'll generate presigned URLs when retrieving)
         return f"s3://{self.bucket_name}/{filename}"
 
+    async def upload_video(
+        self,
+        video_data: bytes,
+        filename: Optional[str] = None
+    ) -> str:
+        """
+        Upload video to S3 and return the S3 key (path).
+        If S3 is not configured, returns a placeholder URL.
+        """
+        if not self.enabled:
+            # Mock/placeholder implementation
+            mock_filename = filename or f"{uuid.uuid4()}.mp4"
+            return f"http://placeholder.local/videos/{mock_filename}"
+
+        # Real S3 implementation
+        if not filename:
+            filename = f"{datetime.now().strftime('%Y/%m/%d')}/{uuid.uuid4()}.mp4"
+
+        self.s3_client.put_object(
+            Bucket=self.bucket_name,
+            Key=filename,
+            Body=video_data,
+            ContentType='video/mp4'
+        )
+
+        # Return the S3 key (we'll generate presigned URLs when retrieving)
+        return f"s3://{self.bucket_name}/{filename}"
+
+
     def generate_presigned_url(self, s3_key: str, expiration: int = 3600) -> str:
         """
         Generate a presigned URL for an S3 object.

@@ -361,6 +361,7 @@ class DatabaseService:
         direction: MessageDirectionEnum,
         content: str,
         photo_file_id: Optional[str] = None,
+        video_file_id: Optional[str] = None,
         telegram_service: Optional[Any] = None,
         image_service: Optional[Any] = None,
         s3_service: Optional[Any] = None
@@ -374,9 +375,10 @@ class DatabaseService:
             direction: Direction of the message (USER or ASSISTANT)
             content: Content of the message
             photo_file_id: Optional Telegram file_id for photo
-            telegram_service: Optional TelegramService for downloading photos
+            video_file_id: Optional Telegram file_id for video
+            telegram_service: Optional TelegramService for downloading media
             image_service: Optional ImageService for processing images
-            s3_service: Optional S3Service for uploading photos
+            s3_service: Optional S3Service for uploading media
 
         Returns:
             Created Message object
@@ -384,6 +386,7 @@ class DatabaseService:
         embedding = None
         embedding_text = content
         photo_s3_url = None
+        video_s3_url = None
         image_description = None
 
         # Process image if present
@@ -404,6 +407,23 @@ class DatabaseService:
                 logger.error(f"[DATABASE_SERVICE] Error processing image: {e}")
                 # Continue with text content as fallback
                 embedding_text = content
+        
+        # Process video if present
+        if video_file_id and telegram_service and s3_service:
+            try:
+                logger.info(f"[DATABASE_SERVICE] Processing video for message: {video_file_id}")
+                # Download video from Telegram
+                video_data = await telegram_service.download_file(video_file_id)
+                
+                # Upload to S3
+                video_s3_url = await s3_service.upload_video(
+                    video_data, 
+                    f"video_{conversation_id}_{video_file_id[:20]}.mp4"
+                )
+                logger.info(f"[DATABASE_SERVICE] Video uploaded to S3: {video_s3_url}")
+            except Exception as e:
+                logger.error(f"[DATABASE_SERVICE] Error processing video: {e}")
+                # Continue without video
 
         # Generate embedding
         if embedding_text and embedding_text.strip():
@@ -419,12 +439,13 @@ class DatabaseService:
                 logger.error(f"[DATABASE_SERVICE] Error generating embedding: {e}")
                 # Continue without embedding - don't block message save
 
-        # Create message with embedding, photo URL, and image description
+        # Create message with embedding, photo URL, video URL, and image description
         message = Message(
             conversation_id=conversation_id,
             direction=direction,
             content=content,
             photo_s3_url=photo_s3_url,
+            video_s3_url=video_s3_url,
             image_description=image_description,
             embedding=embedding
         )

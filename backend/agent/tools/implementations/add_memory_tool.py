@@ -10,7 +10,7 @@ class AddMemoryTool(BaseTool):
     def __init__(self):
         super().__init__(
             name="add_memory",
-            description="Add a memory (text and/or image) to an event",
+            description="Add a memory (text and/or image/video) to an event",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -25,6 +25,10 @@ class AddMemoryTool(BaseTool):
                     "has_image": {
                         "type": "boolean",
                         "description": "Whether this memory includes an image",
+                    },
+                    "has_video": {
+                        "type": "boolean",
+                        "description": "Whether this memory includes a video",
                     },
                     "photo_file_id": {
                         "type": "string",
@@ -43,16 +47,22 @@ class AddMemoryTool(BaseTool):
         event_id = tool_input.get("event_id")
         memory_text = tool_input.get("text")
         has_image = tool_input.get("has_image", False)
+        has_video = tool_input.get("has_video", False)
 
         # Get photo_file_id from tool input (for batch processing) or from context
         photo_file_id = tool_input.get("photo_file_id") or ctx.photo_file_id
+        video_file_id = ctx.video_file_id
         image_url = None
+        video_url = None
 
         print(f"[TOOL] add_memory - event_id: {event_id}")
         print(f"[TOOL] add_memory - memory_text: {memory_text}")
         print(f"[TOOL] add_memory - has_image param: {has_image}")
+        print(f"[TOOL] add_memory - has_video param: {has_video}")
         print(f"[TOOL] add_memory - context.has_photo: {ctx.has_photo}")
+        print(f"[TOOL] add_memory - context.has_video: {ctx.has_video}")
         print(f"[TOOL] add_memory - photo_file_id from context: {photo_file_id}")
+        print(f"[TOOL] add_memory - video_file_id from context: {video_file_id}")
         print(f"[TOOL] add_memory - message_id from context: {ctx.message_id}")
 
         # Variables for image handling
@@ -130,21 +140,50 @@ class AddMemoryTool(BaseTool):
                 import traceback
                 traceback.print_exc()
 
+        # Handle video if present
+        if video_file_id and ctx.telegram_service and ctx.s3_service:
+            try:
+                print(f"[TOOL] Downloading video from Telegram...")
+                video_data = await ctx.telegram_service.download_file(video_file_id)
+                print(f"[TOOL] Video downloaded, size: {len(video_data)} bytes")
+
+                # Upload to S3
+                print(f"[TOOL] Uploading video to S3...")
+                video_url = await ctx.s3_service.upload_video(
+                    video_data, 
+                    f"memory_{event_id}_{video_file_id[:20]}.mp4"
+                )
+                print(f"[TOOL] Video uploaded to S3: {video_url}")
+            except Exception as video_error:
+                print(f"[TOOL] Error handling video: {video_error}")
+                import traceback
+                traceback.print_exc()
+
+        # Determine media URL and type
+        media_url = video_url or image_url
+        media_type = None
+        if video_url:
+            media_type = MediaTypeEnum.VIDEO
+        elif image_url:
+            media_type = MediaTypeEnum.IMAGE
+
         # Add memory to database (linked to the current message if available)
         memory = DatabaseService.add_memory(
             db=ctx.db,
             user=ctx.user,
             event_id=event_id,
             text=memory_text,
-            s3_url=image_url,
+            s3_url=media_url,
             image_description=image_description,
-            media_type=MediaTypeEnum.IMAGE if image_url else None,
+            media_type=media_type,
             message_id=ctx.message_id
         )
 
         if memory:
             result_msg = f"Memory added to event #{event_id}!"
-            if image_url:
+            if video_url:
+                result_msg += f" (video uploaded to S3)"
+            elif image_url:
                 if image_url.startswith("http"):
                     result_msg += f" (photo saved from history)" if has_image and not photo_file_id else f" (photo uploaded to S3)"
                 else:

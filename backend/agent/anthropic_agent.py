@@ -23,76 +23,80 @@ class AnthropicAgent(LLMAgent):
         self.model = self.prompt_builder.get_config("settings", {}).get("model", "claude-sonnet-4-5-20250929")
 
     async def _build_message_content(
-        self,
-        text: str,
-        photo_file_id: Optional[str],
+        self, 
+        text: str, 
+        photo_file_id: Optional[str], 
+        has_video: bool,
+        video_file_id: Optional[str],
         telegram_service
     ) -> Any:
         """
-        Build message content, either simple text or multimodal (image + text).
-
-        Args:
-            text: Text message from user
-            photo_file_id: Optional Telegram file_id for photo
-            telegram_service: TelegramService for downloading photos
-
-        Returns:
-            Either a string (text only) or a list of content blocks (multimodal)
+        Build message content, handling text, photos, and videos.
         """
-        # If no photo, return simple text
-        if not photo_file_id or not telegram_service:
+        # If no photo and no video, just return text
+        if not photo_file_id and not has_video:
             return text
 
-        # Download and encode photo
-        image_data = await self._download_and_encode_photo(photo_file_id, telegram_service)
+        content = []
 
-        if not image_data:
-            print("[AGENT] Failed to download photo, using text-only message")
-            return text
+        # Handle video
+        if has_video:
+            # Add text indicator for video
+            video_text = "[VIDEO ADJUNTO: El usuario ha enviado un video. Usa add_memory con has_video=True para guardarlo.]"
+            if video_file_id:
+                video_text += f"\n[VIDEO_FILE_ID: {video_file_id}]"
+            
+            content.append({
+                "type": "text",
+                "text": video_text
+            })
 
-        # Build multimodal message with image + text
-        print("[AGENT] Building multimodal message with image and text")
+        # Handle photo
+        if photo_file_id:
+            try:
+                # Download and encode photo
+                image_data = await self._download_and_encode_photo(photo_file_id, telegram_service)
+                
+                # Detect media type
+                media_type = self._detect_image_format(image_data)
+                
+                # Add image block
+                content.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_data.decode('utf-8')
+                    }
+                })
+            except Exception as e:
+                print(f"[AGENT] Error processing photo: {e}")
+                content.append({
+                    "type": "text",
+                    "text": "[FOTO ADJUNTA: Error al procesar la imagen para visualización]"
+                })
 
-        return [
-            {
-                "type": "image",
-                "source": image_data
-            },
-            {
+        # Add text content if present
+        if text:
+            content.append({
                 "type": "text",
                 "text": text
-            }
-        ]
+            })
+            
+        return content
 
-    async def _download_and_encode_photo(self, file_id: str, telegram_service) -> Dict[str, Any]:
+    async def _download_and_encode_photo(self, file_id: str, telegram_service) -> bytes:
         """
-        Download photo from Telegram and encode to base64.
-
-        Returns:
-            Dict with base64 data and media_type for Claude API
+        Download photo from Telegram.
         """
         try:
             print(f"[AGENT] Downloading photo from Telegram: {file_id}")
             image_bytes = await telegram_service.download_file(file_id)
             print(f"[AGENT] Photo downloaded, size: {len(image_bytes)} bytes")
-
-            # Encode to base64
-            base64_image = base64.standard_b64encode(image_bytes).decode("utf-8")
-
-            # Detect media type
-            media_type = self._detect_image_format(image_bytes)
-            print(f"[AGENT] Image format detected: {media_type}")
-
-            return {
-                "type": "base64",
-                "media_type": media_type,
-                "data": base64_image
-            }
+            return image_bytes
         except Exception as e:
-            print(f"[AGENT] Error downloading/encoding photo: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+            print(f"[AGENT] Error downloading photo: {e}")
+            raise e
 
     @staticmethod
     def _detect_image_format(image_bytes: bytes) -> str:
@@ -140,6 +144,7 @@ class AnthropicAgent(LLMAgent):
             username=ctx.username,
             first_name=ctx.first_name,
             has_photo=ctx.has_photo,
+            has_video=ctx.has_video,
             conversation_history=ctx.conversation_history,
             include_examples=True  # Always include for consistent behavior
         )
@@ -173,6 +178,8 @@ class AnthropicAgent(LLMAgent):
         current_message_content = await self._build_message_content(
             user_message_with_batch,
             ctx.photo_file_id,
+            ctx.has_video,
+            ctx.video_file_id,
             ctx.telegram_service
         )
 

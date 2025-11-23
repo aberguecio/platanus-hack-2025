@@ -103,6 +103,7 @@ class PromptBuilderV2:
         username: Optional[str] = None,
         first_name: Optional[str] = None,
         has_photo: bool = False,
+        has_video: bool = False,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
         include_examples: bool = False
     ) -> str:
@@ -113,7 +114,9 @@ class PromptBuilderV2:
             telegram_id: User's Telegram ID
             username: User's username
             first_name: User's first name
+            first_name: User's first name
             has_photo: Whether current message has photo
+            has_video: Whether current message has video
             conversation_history: Recent conversation history
             include_examples: Whether to include few-shot examples (optional)
 
@@ -146,6 +149,8 @@ class PromptBuilderV2:
         state_indicators = []
         if has_photo:
             state_indicators.append("⚠️ El usuario envió una FOTO en este mensaje")
+        if has_video:
+            state_indicators.append("⚠️ El usuario envió un VIDEO en este mensaje")
 
         if state_indicators:
             sections.append(f"\n<current_state>\n" + "\n".join(state_indicators) + "\n</current_state>")

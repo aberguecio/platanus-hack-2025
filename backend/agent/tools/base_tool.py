@@ -55,6 +55,14 @@ class ExecutionContext:
         return self.metadata.get("photo_file_id")
 
     @property
+    def has_video(self) -> bool:
+        return self.metadata.get("has_video", False)
+
+    @property
+    def video_file_id(self) -> Optional[str]:
+        return self.metadata.get("video_file_id")
+
+    @property
     def message_id(self) -> Optional[int]:
         return self.metadata.get("message_id")
 
