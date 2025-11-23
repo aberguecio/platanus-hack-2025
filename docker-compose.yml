@@ -130,10 +130,11 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ph-frontend.rule=Host(`ph.berguecio.cl`) && PathPrefix(`/`)"
+      - "traefik.http.routers.ph-frontend.rule=Host(`ph.berguecio.cl`)"
       - "traefik.http.routers.ph-frontend.entrypoints=websecure"
       - "traefik.http.routers.ph-frontend.tls=true"
       - "traefik.http.services.ph-frontend.loadbalancer.server.port=3000"
+      - "traefik.http.routers.ph-frontend.priority=1"
 
 volumes:
   postgres_data:
