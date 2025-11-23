@@ -51,23 +51,36 @@ class AddMemoryTool(BaseTool):
         print(f"[TOOL] add_memory - photo_file_id from context: {photo_file_id}")
         print(f"[TOOL] add_memory - message_id from context: {ctx.message_id}")
 
+        # Variables for image handling
+        image_description = None
+        image_data_for_description = None
+
         # If has_image is True but no photo_file_id in current context,
         # search for recent photo in conversation history
         if has_image and not photo_file_id and ctx.conversation_id:
             print(f"[TOOL] Searching for recent photo in conversation history...")
             from models import Message, MessageDirectionEnum
-            
+
             # Get the last 5 USER messages with photos
             recent_messages = ctx.db.query(Message).filter(
                 Message.conversation_id == ctx.conversation_id,
                 Message.direction == MessageDirectionEnum.USER,
                 Message.photo_s3_url.isnot(None)
             ).order_by(Message.created_at.desc()).limit(5).all()
-            
+
             if recent_messages:
                 # Use the most recent photo
                 image_url = recent_messages[0].photo_s3_url
                 print(f"[TOOL] Found recent photo in history: {image_url}")
+
+                # Download image from S3 for description generation
+                if ctx.s3_service and ctx.image_service:
+                    try:
+                        print(f"[TOOL] Downloading image from S3 for description...")
+                        image_data_for_description = await ctx.s3_service.download_image(image_url)
+                        print(f"[TOOL] Image downloaded from S3: {len(image_data_for_description)} bytes")
+                    except Exception as download_error:
+                        print(f"[TOOL] Error downloading image from S3: {download_error}")
             else:
                 print(f"[TOOL] No recent photo found in history")
 
@@ -85,6 +98,9 @@ class AddMemoryTool(BaseTool):
                     image_data = await ctx.telegram_service.download_file(photo_file_id)
                     print(f"[TOOL] Photo downloaded, size: {len(image_data)} bytes")
 
+                    # Store image data for description generation
+                    image_data_for_description = image_data
+
                     # Upload to S3
                     print(f"[TOOL] Uploading to S3...")
                     image_url = await ctx.s3_service.upload_image(
@@ -99,6 +115,17 @@ class AddMemoryTool(BaseTool):
                     # Fallback to file_id if download/upload fails
                     image_url = photo_file_id
 
+        # Generate image description if we have image data
+        if image_data_for_description and ctx.image_service:
+            try:
+                print(f"[TOOL] Generating image description with Claude Vision...")
+                image_description = ctx.image_service.describe_image(image_data_for_description)
+                print(f"[TOOL] Image description generated: {image_description[:100]}...")
+            except Exception as desc_error:
+                print(f"[TOOL] Error generating image description: {desc_error}")
+                import traceback
+                traceback.print_exc()
+
         # Add memory to database (linked to the current message if available)
         memory = DatabaseService.add_memory(
             db=ctx.db,
@@ -106,6 +133,7 @@ class AddMemoryTool(BaseTool):
             event_id=event_id,
             text=memory_text,
             s3_url=image_url,
+            image_description=image_description,
             media_type=MediaTypeEnum.IMAGE if image_url else None,
             message_id=ctx.message_id
         )
