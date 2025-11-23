@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from schemas import TelegramUpdate
 from agent.tools import ExecutionContext
@@ -284,5 +284,162 @@ También puedes enviarme fotos directamente 📸"""
             text=welcome_text,
             chat_id=chat_id
         )
+
+    async def process_message_batch(
+        self,
+        updates: List[Dict[str, Any]],
+        db: Session
+    ) -> Dict[str, Any]:
+        """
+        Procesa múltiples mensajes como un solo batch.
+
+        Agrupa textos y fotos de múltiples updates, luego llama al agente
+        una vez con todo el contexto batch. Útil para procesar múltiples
+        fotos enviadas rápidamente.
+
+        Args:
+            updates: Lista de Telegram update dicts
+            db: Database session
+
+        Returns:
+            Dict con respuesta de Telegram Bot API
+        """
+        if not updates:
+            return {"error": "No updates provided"}
+
+        print(f"[MESSAGING_SERVICE] Processing batch of {len(updates)} messages")
+
+        # Extraer info de todos los updates
+        texts = []
+        photos = []
+        user_info = None
+        chat_id = None
+
+        for update in updates:
+            msg = update.get("message", {})
+
+            if not user_info:
+                user_info = msg.get("from", {})
+                chat_id = msg.get("chat", {}).get("id")
+
+            # Extraer texto
+            if text := msg.get("text"):
+                # Filtrar comandos /start
+                if not text.startswith("/"):
+                    texts.append(text)
+
+            # Extraer foto (usar la más grande)
+            if photo_list := msg.get("photo"):
+                largest = max(photo_list, key=lambda p: p.get("file_size", 0))
+                photos.append({
+                    "file_id": largest["file_id"],
+                    "message_id": msg.get("message_id"),
+                    "file_size": largest.get("file_size", 0)
+                })
+
+        # Validar que tenemos info de usuario
+        if not user_info or not chat_id:
+            print("[MESSAGING_SERVICE] No user info found in batch")
+            return {"error": "No user info in updates"}
+
+        # Construir contenido combinado
+        combined_text = "\n".join(texts) if texts else ""
+        if not combined_text and not photos:
+            combined_text = ""  # Mensaje vacío con fotos
+
+        print(f"[MESSAGING_SERVICE] Batch: {len(texts)} texts, {len(photos)} photos")
+
+        # Obtener o crear usuario
+        user = self.database_service.get_or_create_user(
+            db=db,
+            telegram_id=str(user_info["id"]),
+            username=user_info.get("username"),
+            first_name=user_info.get("first_name"),
+            last_name=user_info.get("last_name")
+        )
+
+        # Obtener o crear conversación
+        conversation = self.database_service.get_or_create_conversation(
+            db=db,
+            user_id=user.id,
+            channel_identifier="telegram"
+        )
+
+        # Guardar mensaje agregado en DB
+        # Solo guardar la primera foto en el mensaje (las demás se pasan en batch_photos)
+        message = await self.database_service.save_message(
+            db=db,
+            conversation_id=conversation.id,
+            direction=MessageDirectionEnum.USER,
+            content=combined_text if combined_text else "[Fotos]",
+            photo_file_id=photos[0]["file_id"] if photos else None,
+            image_service=self.image_service if photos else None
+        )
+
+        # Construir contexto conversacional
+        recent_messages = self.database_service.get_recent_messages(
+            db=db,
+            conversation_id=conversation.id,
+            limit=10
+        )
+
+        # Formatear historial (sin el mensaje actual)
+        conversation_history = [
+            {
+                "role": msg.direction.value,
+                "content": msg.content,
+                "has_photo": bool(msg.photo_s3_url),
+                "image_description": msg.image_description
+            }
+            for msg in reversed(recent_messages[1:])
+        ] if len(recent_messages) > 1 else []
+
+        # Construir ExecutionContext para batch
+        metadata = {
+            "telegram_id": str(user_info["id"]),
+            "username": user_info.get("username"),
+            "first_name": user_info.get("first_name"),
+            "last_name": user_info.get("last_name"),
+            "has_photo": len(photos) > 0,
+            "photo_file_id": photos[0]["file_id"] if photos else None,
+            "message_id": message.id
+        }
+
+        ctx = ExecutionContext(
+            db=db,
+            user=user,
+            s3_service=self.s3_service,
+            telegram_service=self.telegram_service,
+            image_service=self.image_service,
+            metadata=metadata,
+            conversation_id=conversation.id,
+            conversation_history=conversation_history,
+            # Batch-specific fields
+            is_batch=True,
+            batch_photos=photos,
+            batch_message_ids=[u.get("message", {}).get("message_id") for u in updates]
+        )
+
+        print(f"[MESSAGING_SERVICE] Calling agent with batch context")
+
+        # Llamar al agente con el batch
+        agent_response = await self.agent.process_message(combined_text, ctx)
+
+        # Guardar respuesta del agente
+        await self.database_service.save_message(
+            db=db,
+            conversation_id=conversation.id,
+            direction=MessageDirectionEnum.ASSISTANT,
+            content=agent_response
+        )
+
+        print(f"[MESSAGING_SERVICE] Agent response: {agent_response[:100]}...")
+
+        # Retornar formato para Telegram
+        return {
+            "method": "sendMessage",
+            "text": agent_response,
+            "parse_mode": "Markdown"
+        }
 
 

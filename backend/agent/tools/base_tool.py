@@ -19,10 +19,15 @@ class ExecutionContext:
 
     # Request metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     # Conversation context
     conversation_id: Optional[int] = None
     conversation_history: Optional[List[Dict[str, str]]] = None
+
+    # Batch processing support
+    is_batch: bool = False
+    batch_photos: List[Dict[str, Any]] = field(default_factory=list)
+    batch_message_ids: List[int] = field(default_factory=list)
 
     # Convenient properties to access common metadata
     @property
