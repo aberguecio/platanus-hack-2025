@@ -18,7 +18,9 @@ export function Feed() {
     useEffect(() => {
         async function fetchMemories() {
             try {
-                const response = await fetch("http://localhost:8000/memories")
+                // TODO: RM must use the actual backend URL
+                const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+                const response = await fetch(`${API_URL}/memories`)
                 if (!response.ok) {
                     throw new Error("Failed to fetch memories")
                 }

@@ -16,7 +16,11 @@ from services.image import ImageService
 from services.search import SearchService
 from schemas import TelegramUpdate
 # Import models to ensure SQLAlchemy recognizes them
-from models import User, Event, Memory, Message
+from models import User, Event, Memory, Message, LoginRequest
+from database import engine, Base
+
+# Create tables if they don't exist
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Memories Bot API", version="1.0.0")
 
@@ -84,3 +88,101 @@ def get_memories(
     """
     memories = db.query(Memory).order_by(Memory.created_at.desc()).offset(skip).limit(limit).all()
     return memories
+
+
+# ============================================================================
+# Authentication Endpoints
+# ============================================================================
+
+from pydantic import BaseModel
+from models.auth import LoginRequest
+import uuid
+from datetime import datetime, timedelta
+
+class LoginPayload(BaseModel):
+    phone_number: str
+
+class VerifyPayload(BaseModel):
+    token: str
+
+class AuthResponse(BaseModel):
+    token: str
+    user: dict
+
+@app.post("/auth/login")
+async def login(payload: LoginPayload, db: Session = Depends(get_db)):
+    """
+    Initiate login flow.
+    1. Find user by phone number.
+    2. Generate magic link token.
+    3. Send link via Telegram.
+    """
+    # Normalize phone number (basic)
+    phone = payload.phone_number.strip()
+    
+    # Find user
+    user = db.query(User).filter(User.phone_number == phone).first()
+    if not user:
+        # For security, don't reveal if user exists, but here we might want to be helpful
+        # If user doesn't exist, we can't send telegram message easily unless we use phone number contact sharing
+        # For this hackathon, assume user exists
+        return {"message": "If your phone number is registered, you will receive a login link on Telegram."}
+
+    # Generate token
+    token = str(uuid.uuid4())
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    
+    login_request = LoginRequest(
+        user_id=user.id,
+        token=token,
+        expires_at=expires_at
+    )
+    db.add(login_request)
+    db.commit()
+    
+    # Send Telegram message
+    # Link format: {FRONTEND_URL}/verify?token=...
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    magic_link = f"{frontend_url}/verify?token={token}"
+    print(f"MAGIC LINK: {magic_link}")
+    
+    try:
+        await telegram_service.send_message(
+            chat_id=int(user.telegram_id),
+            text=f"🔐 Log in to Collective Diary:\n\n{magic_link}\n\nThis link expires in 15 minutes."
+        )
+    except Exception as e:
+        print(f"Failed to send telegram message: {e}")
+        return {"error": "Failed to send login link"}
+        
+    return {"message": "Login link sent to Telegram"}
+
+@app.post("/auth/verify")
+def verify(payload: VerifyPayload, db: Session = Depends(get_db)):
+    """
+    Verify magic link token.
+    """
+    login_req = db.query(LoginRequest).filter(
+        LoginRequest.token == payload.token,
+        LoginRequest.is_used == False,
+        LoginRequest.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not login_req:
+        return {"error": "Invalid or expired token"}
+        
+    # Mark as used
+    login_req.is_used = True
+    db.commit()
+    
+    user = login_req.user
+    
+    return {
+        "token": "session_token_placeholder", # In a real app, issue a JWT here
+        "user": {
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "telegram_id": user.telegram_id
+        }
+    }

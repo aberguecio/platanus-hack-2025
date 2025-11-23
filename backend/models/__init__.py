@@ -11,6 +11,7 @@ from .channel import Channel
 from .assistant import AIMemoryAssistant
 from .conversation import Conversation
 from .message import Message
+from .auth import LoginRequest
 
 # Re-export enums for convenience
 from enums import (
@@ -30,7 +31,9 @@ __all__ = [
     "Channel",
     "AIMemoryAssistant",
     "Conversation",
+    "Conversation",
     "Message",
+    "LoginRequest",
     # Enums (re-exported for backward compatibility)
     "MediaTypeEnum",
     "ChannelTypeEnum",
