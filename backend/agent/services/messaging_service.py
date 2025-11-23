@@ -41,7 +41,8 @@ class MessagingService:
         self,
         text: str,
         chat_id: int,
-        parse_mode: str = "Markdown"
+        parse_mode: str = "Markdown",
+        reply_markup: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
         Envía un mensaje a través de Telegram.
@@ -50,16 +51,22 @@ class MessagingService:
             text: Texto del mensaje a enviar
             chat_id: ID del chat de Telegram
             parse_mode: Modo de formato del texto (default: Markdown)
+            reply_markup: Teclado o markup opcional
 
         Returns:
-            Dict con la respuesta formateada para la API de Telegram
+            Dict vacío para satisfacer el contrato del webhook (ya que enviamos activamente)
         """
 
-        return self.telegram_service.format_response(
+        # Enviar mensaje activamente usando HTTP POST
+        await self.telegram_service.send_message(
             text=text,
             chat_id=chat_id,
-            parse_mode=parse_mode
+            parse_mode=parse_mode,
+            reply_markup=reply_markup
         )
+        
+        # Retornar dict vacío para que el webhook no intente enviar nada más
+        return {}
 
     async def process_response(
         self,
@@ -103,7 +110,8 @@ class MessagingService:
                 telegram_id=message_data["telegram_id"],
                 username=message_data["username"],
                 first_name=message_data["first_name"],
-                last_name=message_data["last_name"]
+                last_name=message_data["last_name"],
+                phone_number=message_data.get("phone_number")
             )
 
             # 2.5. Obtener o crear conversación para el usuario
@@ -261,6 +269,29 @@ class MessagingService:
             chat_id=chat_id
         )
 
+    async def request_contact(self, chat_id: int, text: str = "Para continuar, necesito validar tu número de teléfono. Por favor compártelo usando el botón:") -> Dict[str, Any]:
+        """
+        Envía un mensaje solicitando el contacto del usuario.
+        """
+        reply_markup = {
+            "keyboard": [
+                [
+                    {
+                        "text": "📱 Compartir mi teléfono",
+                        "request_contact": True
+                    }
+                ]
+            ],
+            "resize_keyboard": True,
+            "one_time_keyboard": True
+        }
+
+        return await self.send_message(
+            text=text,
+            chat_id=chat_id,
+            reply_markup=reply_markup
+        )
+
     async def send_welcome_message(self, chat_id: int, first_name: str) -> Dict[str, Any]:
         """
         Envía un mensaje de bienvenida al usuario.
@@ -281,11 +312,29 @@ Prueba diciendo:
 - 'Lista mis eventos'
 - 'Agrega un recuerdo al evento #1: ¡La pasé genial!'
 
-También puedes enviarme fotos directamente 📸"""
+También puedes enviarme fotos directamente 📸
+
+💡 **Importante**: Para acceder a tus recuerdos en la web, necesito tu número de teléfono.
+Por favor, presiona el botón de abajo para compartirlo 👇"""
+
+        # Create keyboard with request_contact button
+        reply_markup = {
+            "keyboard": [
+                [
+                    {
+                        "text": "📱 Compartir mi teléfono",
+                        "request_contact": True
+                    }
+                ]
+            ],
+            "resize_keyboard": True,
+            "one_time_keyboard": True
+        }
 
         return await self.send_message(
             text=welcome_text,
-            chat_id=chat_id
+            chat_id=chat_id,
+            reply_markup=reply_markup
         )
 
     async def process_message_batch(
@@ -318,6 +367,7 @@ También puedes enviarme fotos directamente 📸"""
         videos = []
         user_info = None
         chat_id = None
+        phone_number = None
 
         for update in updates:
             msg = update.get("message", {})
@@ -325,6 +375,14 @@ También puedes enviarme fotos directamente 📸"""
             if not user_info:
                 user_info = msg.get("from", {})
                 chat_id = msg.get("chat", {}).get("id")
+
+            # Check for contact/phone number
+            if contact := msg.get("contact"):
+                if contact.get("phone_number"):
+                    phone_number = contact.get("phone_number")
+                    if not phone_number.startswith("+"):
+                        phone_number = f"+{phone_number}"
+                    print(f"[MESSAGING_SERVICE] Found phone number in batch: {phone_number}")
 
             # Extraer texto o caption
             text_content = msg.get("text") or msg.get("caption")
@@ -365,6 +423,8 @@ También puedes enviarme fotos directamente 📸"""
                 combined_text = "[VIDEO]"
             elif photos:
                 combined_text = "[FOTO]"
+            elif phone_number:
+                combined_text = "[CONTACTO COMPARTIDO]"
 
         print(f"[MESSAGING_SERVICE] Batch: {len(texts)} texts, {len(photos)} photos, {len(videos)} videos")
 
@@ -374,7 +434,8 @@ También puedes enviarme fotos directamente 📸"""
             telegram_id=str(user_info["id"]),
             username=user_info.get("username"),
             first_name=user_info.get("first_name"),
-            last_name=user_info.get("last_name")
+            last_name=user_info.get("last_name"),
+            phone_number=phone_number
         )
 
         # Obtener o crear conversación

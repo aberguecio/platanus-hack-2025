@@ -75,6 +75,30 @@ export default function EventPage({ params }: { params: { id: string } }) {
                     console.log("[EventPage] Using cached narrative from database")
                 }
 
+                // Check for aftermovie video in memories and trigger generation if missing
+                const hasVideo = event.memories?.some((m: any) =>
+                    m?.media_type === 'video' &&
+                    (m?.text?.includes("Video resumen") || m?.text?.includes("generated automatically"))
+                )
+
+                if (!hasVideo) {
+                    console.log("[EventPage] No aftermovie found, triggering background generation...")
+                    // Fire and forget - don't await this to avoid blocking page load
+                    fetch(`${API_URL}/events/${params.id}/generate-video`, { method: 'POST' })
+                        .then(res => res.json())
+                        .then(data => {
+                            console.log("[EventPage] Video generation completed:", data)
+                            if (data.video_url) {
+                                // Optional: Update state to show video immediately without refresh
+                                // For now, the user can refresh or we can implement a toast
+                                console.log("Video generated at:", data.video_url)
+                            }
+                        })
+                        .catch(err => console.error("[EventPage] Video generation failed:", err))
+                } else {
+                    console.log("[EventPage] Aftermovie already exists")
+                }
+
                 // Handle error responses and ensure arrays
                 console.log("[EventPage] Raw bestPhotos before processing:", bestPhotos)
                 console.log("[EventPage] bestPhotos type:", typeof bestPhotos)
@@ -200,6 +224,20 @@ export default function EventPage({ params }: { params: { id: string } }) {
 
     console.log("Display hero image:", displayHeroImage)
 
+    // Find aftermovie video
+    let aftermovieUrl = undefined
+    if (event?.memories) {
+        // Look for the auto-generated video memory
+        const videoMemory = event.memories.find((m: any) =>
+            m?.media_type === 'video' &&
+            (m?.text?.includes("Video resumen") || m?.text?.includes("generated automatically"))
+        )
+
+        if (videoMemory) {
+            aftermovieUrl = videoMemory.s3_url
+        }
+    }
+
     return (
         <main className="min-h-screen bg-black text-white">
             {/* Fixed Back Button */}
@@ -267,7 +305,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
             {/* Aftermovie Section */}
             <AftermovieSection
                 eventName={event.name}
-                videoUrl={undefined} // Placeholder for future video generation
+                videoUrl={aftermovieUrl}
             />
 
 

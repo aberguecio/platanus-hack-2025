@@ -96,6 +96,16 @@ class TelegramService:
             print(f"[TELEGRAM_SERVICE] - video duration: {video.duration}s")
             print(f"[TELEGRAM_SERVICE] - video size: {video.file_size} bytes")
 
+        # Handle contact if present
+        contact = message.contact
+        phone_number = None
+        if contact:
+            phone_number = contact.phone_number
+            # Ensure phone number has + prefix if missing
+            if phone_number and not phone_number.startswith("+"):
+                phone_number = f"+{phone_number}"
+            print(f"[TELEGRAM_SERVICE] - phone_number: {phone_number}")
+
         # Determine final text to process
         # Handle voice transcription
         transcribed_audio = None
@@ -112,6 +122,9 @@ class TelegramService:
         elif transcribed_audio:
             # Only audio
             final_text = transcribed_audio
+        elif contact and phone_number:
+            # Only contact
+            final_text = f"[Usuario compartió su contacto: {phone_number}]"
         else:
             # Only text/caption
             final_text = message_text
@@ -119,7 +132,8 @@ class TelegramService:
         print(f"[TELEGRAM_SERVICE] Final text to process: '{final_text}'")
         print(f"[TELEGRAM_SERVICE] Has photo: {bool(photo)}")
         print(f"[TELEGRAM_SERVICE] Has video: {bool(video)}")
-        print(f"[TELEGRAM_SERVICE] Has voice: {bool(voice)}\n")
+        print(f"[TELEGRAM_SERVICE] Has voice: {bool(voice)}")
+        print(f"[TELEGRAM_SERVICE] Has contact: {bool(contact)}\n")
 
         return {
             "telegram_id": telegram_id,
@@ -133,7 +147,8 @@ class TelegramService:
             "has_video": bool(video),
             "video_file_id": video_file_id,
             "has_voice": bool(voice),
-            "voice_file_id": voice_file_id
+            "voice_file_id": voice_file_id,
+            "phone_number": phone_number
         }
 
     async def _transcribe_voice(self, voice_file_id: str) -> str:
@@ -200,7 +215,7 @@ class TelegramService:
 
         return text
 
-    def format_response(self, text: str, chat_id: int, parse_mode: str = "Markdown") -> Dict[str, Any]:
+    def format_response(self, text: str, chat_id: int, parse_mode: str = "Markdown", reply_markup: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Formatea la respuesta en el formato esperado por la API de Telegram Bot.
 
@@ -208,6 +223,7 @@ class TelegramService:
             text: Texto de la respuesta
             chat_id: ID del chat al que enviar el mensaje
             parse_mode: Modo de formateo del texto (default: "Markdown")
+            reply_markup: Teclado o markup opcional
 
         Returns:
             Dict con el formato de respuesta de Telegram Bot API
@@ -224,6 +240,9 @@ class TelegramService:
 
         if parse_mode:
             response["parse_mode"] = parse_mode
+            
+        if reply_markup:
+            response["reply_markup"] = reply_markup
 
         return response
 
@@ -243,7 +262,7 @@ class TelegramService:
             "reason": reason
         }
 
-    async def send_message(self, chat_id: int, text: str, parse_mode: str = "Markdown") -> Dict[str, Any]:
+    async def send_message(self, chat_id: int, text: str, parse_mode: str = "Markdown", reply_markup: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Send a message to a Telegram chat.
         
@@ -251,17 +270,23 @@ class TelegramService:
             chat_id: Target chat ID
             text: Message text
             parse_mode: Parse mode (Markdown, HTML, etc.)
+            reply_markup: Optional keyboard markup
             
         Returns:
             Response from Telegram API
         """
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": parse_mode
+        }
+        
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{self.base_url}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": text,
-                    "parse_mode": parse_mode
-                }
+                json=payload
             )
             return response.json()

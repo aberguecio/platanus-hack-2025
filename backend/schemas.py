@@ -62,6 +62,15 @@ class Video(BaseModel):
 
 
 
+class Contact(BaseModel):
+    """Telegram contact object"""
+    phone_number: str
+    first_name: str
+    last_name: Optional[str] = None
+    user_id: Optional[int] = None
+    vcard: Optional[str] = None
+
+
 class TelegramMessage(BaseModel):
     """Telegram message object"""
     message_id: int
@@ -74,6 +83,7 @@ class TelegramMessage(BaseModel):
     voice: Optional[Voice] = None
     video: Optional[Video] = None
     caption: Optional[str] = None
+    contact: Optional[Contact] = None
 
     class Config:
         populate_by_name = True

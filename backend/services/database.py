@@ -19,7 +19,8 @@ class DatabaseService:
         telegram_id: str,
         username: Optional[str] = None,
         first_name: Optional[str] = None,
-        last_name: Optional[str] = None
+        last_name: Optional[str] = None,
+        phone_number: Optional[str] = None
     ) -> User:
         """Get existing user or create new one"""
         user = db.query(User).filter(User.telegram_id == telegram_id).first()
@@ -29,7 +30,8 @@ class DatabaseService:
                 telegram_id=telegram_id,
                 username=username,
                 first_name=first_name,
-                last_name=last_name
+                last_name=last_name,
+                phone_number=phone_number
             )
             db.add(user)
             db.commit()
@@ -42,6 +44,8 @@ class DatabaseService:
                 user.first_name = first_name
             if last_name and user.last_name != last_name:
                 user.last_name = last_name
+            if phone_number and user.phone_number != phone_number:
+                user.phone_number = phone_number
             db.commit()
 
         return user

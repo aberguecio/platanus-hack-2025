@@ -42,6 +42,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     update_dict = update.to_dict()
 
+    # Print detailed user and message information
+    print("\n" + "="*80)
+    print("[BOT] 📨 NEW MESSAGE RECEIVED FROM TELEGRAM")
+    print("="*80)
+    print(f"[BOT] User ID: {update.effective_user.id}")
+    print(f"[BOT] Username: @{update.effective_user.username}")
+    print(f"[BOT] First Name: {update.effective_user.first_name}")
+    print(f"[BOT] Last Name: {update.effective_user.last_name}")
+    print(f"[BOT] Chat ID: {chat_id}")
+    print(f"[BOT] Is Bot: {update.effective_user.is_bot}")
+    print(f"[BOT] Language Code: {update.effective_user.language_code}")
+    print("-"*80)
+    print("[BOT] 📋 FULL UPDATE DICT:")
+    print("-"*80)
+    import json
+    print(json.dumps(update_dict, indent=2, ensure_ascii=False))
+    print("="*80 + "\n")
+
     # Encolar mensaje (agrupa automáticamente con ventana de 12.5s)
     try:
         await message_batcher.add_message(user_id, chat_id, update_dict)
@@ -60,10 +78,44 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     Forwards the command to the backend API.
     If it's a deep link (e.g. /start evt_123), the backend agent will handle the invite.
-    If it's just /start, the backend agent will say hello.
+    If it's just /start, the backend agent will say hello and show their Telegram ID.
     """
-    # Reuse the generic message handler logic
+    # Show user their Telegram ID first
+    user_id = update.effective_user.id
+    first_name = update.effective_user.first_name or "there"
+
+    await update.message.reply_text(
+        f"👋 Welcome {first_name}!\n\n"
+        f"Your Telegram ID is: `{user_id}`\n\n"
+        f"You'll need this ID to log in to the web app.\n"
+        f"Use /myid anytime to see it again.",
+        parse_mode="Markdown"
+    )
+
+    # Then forward to backend agent for processing
     await handle_message(update, context)
+
+
+async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle /myid command - shows user their Telegram ID
+    """
+    user_id = update.effective_user.id
+    username = update.effective_user.username
+    first_name = update.effective_user.first_name or "User"
+
+    message = (
+        f"👤 *Your Telegram Info*\n\n"
+        f"• **Telegram ID:** `{user_id}`\n"
+    )
+
+    if username:
+        message += f"• **Username:** @{username}\n"
+
+    message += f"• **Name:** {first_name}\n\n"
+    message += "💡 Use your Telegram ID to log in to the web app at http://localhost:3000/login"
+
+    await update.message.reply_text(message, parse_mode="Markdown")
 
 
 def main():
@@ -79,6 +131,7 @@ def main():
 
     # Register handlers
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("myid", myid_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(MessageHandler(filters.PHOTO, handle_message))
     application.add_handler(MessageHandler(filters.VOICE, handle_message))

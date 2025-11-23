@@ -1154,7 +1154,7 @@ import uuid
 from datetime import datetime, timedelta
 
 class LoginPayload(BaseModel):
-    phone_number: str
+    telegram_id: str
 
 class VerifyPayload(BaseModel):
     token: str
@@ -1167,20 +1167,18 @@ class AuthResponse(BaseModel):
 async def login(payload: LoginPayload, db: Session = Depends(get_db)):
     """
     Initiate login flow.
-    1. Find user by phone number.
+    1. Find user by Telegram ID.
     2. Generate magic link token.
     3. Send link via Telegram.
     """
-    # Normalize phone number (basic)
-    phone = payload.phone_number.strip()
-    
+    # Normalize telegram_id (remove whitespace)
+    telegram_id = payload.telegram_id.strip()
+
     # Find user
-    user = db.query(User).filter(User.phone_number == phone).first()
+    user = db.query(User).filter(User.telegram_id == telegram_id).first()
     if not user:
-        # For security, don't reveal if user exists, but here we might want to be helpful
-        # If user doesn't exist, we can't send telegram message easily unless we use phone number contact sharing
-        # For this hackathon, assume user exists
-        return {"message": "If your phone number is registered, you will receive a login link on Telegram."}
+        # For security, don't reveal if user exists
+        return {"message": "If your Telegram ID is registered, you will receive a login link on Telegram."}
 
     # Generate token
     token = str(uuid.uuid4())
@@ -1275,3 +1273,83 @@ async def webhook_batch(
 
     print(f"[BATCH] Batch processed successfully")
     return response
+
+
+# ============================================================================
+# Video Generation Endpoints
+# ============================================================================
+
+from services.video import VideoService
+
+# Initialize VideoService
+video_service = VideoService(s3_service=s3_service)
+
+@app.post("/events/{event_id}/generate-video")
+async def generate_event_video(
+    event_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a video compilation for an event.
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # Get all memories with media
+    memories = db.query(Memory).filter(
+        Memory.event_id == event_id,
+        Memory.s3_url.isnot(None)
+    ).all()
+
+    if not memories:
+        return {"message": "No media found for this event"}
+
+    # Prepare media list
+    media_files = []
+    for m in memories:
+        # Determine type based on media_type or file extension
+        media_type = "image"
+        if m.media_type == MediaTypeEnum.VIDEO:
+            media_type = "video"
+        elif m.s3_url.lower().endswith(('.mp4', '.mov', '.avi')):
+            media_type = "video"
+            
+        media_files.append({
+            "url": m.s3_url,
+            "type": media_type
+        })
+
+    # Generate video
+    print(f"[MAIN] Generating video for event {event.name} with {len(media_files)} files")
+    video_url = await video_service.create_compilation(
+        media_files=media_files,
+        output_filename=f"aftermovie_{event_id}_{int(datetime.utcnow().timestamp())}.mp4"
+    )
+
+    if not video_url:
+        raise HTTPException(status_code=500, detail="Failed to generate video")
+
+    # Create a new memory for the video
+    # Find a system user or the first user of the event to attribute this memory to
+    # For now, let's use the first user in the event or the first user in DB
+    user = event.users[0] if event.users else db.query(User).first()
+    
+    if user:
+        video_memory = Memory(
+            event_id=event_id,
+            user_id=user.id,
+            text="🎥 Video resumen del evento generado automáticamente",
+            s3_url=video_url,
+            media_type=MediaTypeEnum.VIDEO,
+            created_at=datetime.utcnow()
+        )
+        db.add(video_memory)
+        db.commit()
+        db.refresh(video_memory)
+
+    return {
+        "message": "Video generated successfully",
+        "video_url": video_url,
+        "memory_id": video_memory.id if user else None
+    }
