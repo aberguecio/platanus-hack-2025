@@ -49,6 +49,7 @@ class AddMemoryTool(BaseTool):
         print(f"[TOOL] add_memory - has_image param: {has_image}")
         print(f"[TOOL] add_memory - context.has_photo: {ctx.has_photo}")
         print(f"[TOOL] add_memory - photo_file_id from context: {photo_file_id}")
+        print(f"[TOOL] add_memory - message_id from context: {ctx.message_id}")
 
         # If has_image is True but no photo_file_id in current context,
         # search for recent photo in conversation history
@@ -98,7 +99,7 @@ class AddMemoryTool(BaseTool):
                     # Fallback to file_id if download/upload fails
                     image_url = photo_file_id
 
-        # Add memory to database
+        # Add memory to database (linked to the current message if available)
         memory = DatabaseService.add_memory(
             db=ctx.db,
             user=ctx.user,
@@ -106,6 +107,7 @@ class AddMemoryTool(BaseTool):
             text=memory_text,
             s3_url=image_url,
             media_type=MediaTypeEnum.IMAGE if image_url else None,
+            message_id=ctx.message_id
         )
 
         if memory:

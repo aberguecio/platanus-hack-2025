@@ -27,7 +27,7 @@ class MessagingService:
         self.telegram_service = telegram_service
         self.database_service = database_service
         self.s3_service = s3_service
-        
+
         # Initialize ImageService for processing photos in messages
         from services.image import ImageService
         self.image_service = ImageService(
@@ -51,7 +51,7 @@ class MessagingService:
 
         Returns:
             Dict con la respuesta formateada para la API de Telegram
-        """ 
+        """
 
         return self.telegram_service.format_response(
             text=text,
@@ -113,7 +113,7 @@ class MessagingService:
 
             # 3. Guardar mensaje del usuario en la base de datos
             print(f"[MESSAGING_SERVICE] Saving user message to database")
-            await self.database_service.save_message(
+            user_message = await self.database_service.save_message(
                 db=db,
                 conversation_id=conversation.id,
                 direction=MessageDirectionEnum.USER,
@@ -123,27 +123,32 @@ class MessagingService:
                 image_service=self.image_service,
                 s3_service=self.s3_service
             )
+            print(f"[MESSAGING_SERVICE] User message saved with ID: {user_message.id}")
 
             # 4. Obtener historial reciente de conversación
             print(f"[MESSAGING_SERVICE] Fetching recent conversation history")
             recent_messages = self.database_service.get_recent_messages(
                 db=db,
                 conversation_id=conversation.id,
-                limit=10
+                limit=11  # Fetch 11 to get 10 history messages (excluding current)
             )
-            
+
             # Convertir a formato esperado (más antiguos primero, excluyendo el mensaje actual)
             # Los mensajes vienen ordenados desc (más reciente primero), necesitamos invertir
             conversation_history = [
-                {"role": msg.direction.value, "content": msg.content}
+                {
+                    "role": msg.direction.value,
+                    "content": msg.content,
+                    "has_photo": bool(msg.photo_s3_url)  # Include photo info
+                }
                 for msg in reversed(recent_messages[1:])  # Skip el mensaje actual (primero en la lista)
             ] if len(recent_messages) > 1 else []
-            
+
             print(f"[MESSAGING_SERVICE] Loaded {len(conversation_history)} previous messages")
 
             # 5. Preparar contexto de ejecución para el agente
             execution_context = self._build_execution_context(
-                message_data, user, db, conversation.id, conversation_history
+                message_data, user, db, conversation.id, conversation_history, user_message.id
             )
 
             print(f"[MESSAGING_SERVICE] ExecutionContext prepared:")
@@ -192,7 +197,8 @@ class MessagingService:
         user: Any,
         db: Session,
         conversation_id: int,
-        conversation_history: list = None
+        conversation_history: list = None,
+        message_id: int = None
     ) -> ExecutionContext:
         """
         Construye el ExecutionContext necesario para el agente de IA.
@@ -203,6 +209,7 @@ class MessagingService:
             db: Sesión de base de datos
             conversation_id: ID de la conversación actual
             conversation_history: Historial de conversación (opcional)
+            message_id: ID del mensaje actual del usuario (opcional)
 
         Returns:
             ExecutionContext con todos los servicios y metadata
@@ -213,7 +220,8 @@ class MessagingService:
             "first_name": message_data["first_name"],
             "last_name": message_data["last_name"],
             "has_photo": message_data["has_photo"],
-            "photo_file_id": message_data["photo_file_id"]
+            "photo_file_id": message_data["photo_file_id"],
+            "message_id": message_id
         }
 
         return ExecutionContext(

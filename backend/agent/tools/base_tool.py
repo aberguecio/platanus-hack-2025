@@ -48,6 +48,10 @@ class ExecutionContext:
     def photo_file_id(self) -> Optional[str]:
         return self.metadata.get("photo_file_id")
 
+    @property
+    def message_id(self) -> Optional[int]:
+        return self.metadata.get("message_id")
+
 
 class BaseTool(ABC):
     """Base abstract class for all agent tools"""
