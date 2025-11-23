@@ -87,7 +87,7 @@ class MessagingService:
             print(f"[MESSAGING_SERVICE] Processing new message update")
 
             # 1. Extraer datos del mensaje usando TelegramService
-            message_data = self.telegram_service.extract_message_data(update)
+            message_data = await self.telegram_service.extract_message_data(update)
 
             if not message_data:
                 print("[MESSAGING_SERVICE] No valid message data found")

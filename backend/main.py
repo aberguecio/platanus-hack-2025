@@ -9,6 +9,7 @@ from services import DatabaseService, TelegramService, S3Service
 from services.embedding import EmbeddingService
 from services.image import ImageService
 from services.search import SearchService
+from services.speech import SpeechService
 from schemas import TelegramUpdate
 # Import models to ensure SQLAlchemy recognizes them
 from models import User, Event, Memory, Message
@@ -18,7 +19,21 @@ app = FastAPI(title="Memories Bot API", version="1.0.0")
 # Initialize services
 agent = AnthropicAgent()
 s3_service = S3Service()
-telegram_service = TelegramService(os.getenv("TELEGRAM_BOT_TOKEN", ""))
+
+# Initialize SpeechService if OpenAI API key is available
+speech_service = None
+try:
+    speech_service = SpeechService()
+    print("[MAIN] SpeechService initialized - voice messages will be transcribed")
+except ValueError as e:
+    print(f"[MAIN] SpeechService not initialized: {e}")
+    print("[MAIN] Voice messages will not be transcribed")
+
+telegram_service = TelegramService(
+    bot_token=os.getenv("TELEGRAM_BOT_TOKEN", ""),
+    speech_service=speech_service
+)
+
 image_service = ImageService(
     telegram_service=telegram_service,
     s3_service=s3_service
