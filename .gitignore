@@ -38,3 +38,4 @@ Thumbs.db
 
 # Python
 .mypy_cache/
+frontend/node_modules/*
