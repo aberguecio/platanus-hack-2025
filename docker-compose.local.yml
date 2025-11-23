@@ -101,21 +101,19 @@ services:
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: nextjs_frontend_local
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-    ports:
-      - "3000:3000"
+    image: node:18-alpine
+    container_name: frontend_local
+    working_dir: /app
     volumes:
       - ./frontend:/app
       - /app/node_modules
-      - /app/.next
+    ports:
+      - "3000:3000"
+    command: sh -c "yarn install && yarn dev -H 0.0.0.0"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
-      backend:
-        condition: service_started
+      - backend
     restart: unless-stopped
 
 volumes:
