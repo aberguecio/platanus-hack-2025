@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data_local:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U memories_user -d memories_db"]
+      test: [ "CMD-SHELL", "pg_isready -U memories_user -d memories_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +25,7 @@ services:
       - redis_data_local:/data
     command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -99,6 +99,23 @@ services:
       backend:
         condition: service_started
     restart: unless-stopped
+
+  frontend:
+    image: node:18-alpine
+    container_name: frontend_local
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: sh -c "yarn install && yarn dev -H 0.0.0.0"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 
 volumes:
   postgres_data_local:
