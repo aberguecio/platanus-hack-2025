@@ -123,6 +123,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=https://ph.berguecio.cl
       - NEXT_PUBLIC_BASE_PATH=/front
+      - ASSET_PREFIX=/front
     command: sh -c "yarn install && yarn dev -H 0.0.0.0"
     networks:
       - webapp
@@ -135,8 +136,6 @@ services:
       - "traefik.http.routers.ph-frontend.entrypoints=websecure"
       - "traefik.http.routers.ph-frontend.tls=true"
       - "traefik.http.services.ph-frontend.loadbalancer.server.port=3000"
-      - "traefik.http.middlewares.frontend-stripprefix.stripprefix.prefixes=/front"
-      - "traefik.http.routers.ph-frontend.middlewares=frontend-stripprefix"
       - "traefik.http.routers.ph-frontend.priority=100"
 
 volumes:
