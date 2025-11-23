@@ -275,3 +275,41 @@ class AnthropicAgent(LLMAgent):
         )
 
         return response.content[0].text
+
+    async def send_message(
+        self,
+        messages: list,
+        system_prompt: Optional[str] = None,
+        max_tokens: int = 2048
+    ) -> dict:
+        """
+        Send messages to Claude with optional system prompt.
+        Returns response in format: {"content": [{"text": "..."}]}
+        
+        Args:
+            messages: List of message dicts with "role" and "content" keys
+            system_prompt: Optional system prompt
+            max_tokens: Maximum tokens for response
+            
+        Returns:
+            Dict with "content" key containing list of content blocks
+        """
+        kwargs = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "messages": messages
+        }
+        
+        if system_prompt:
+            kwargs["system"] = system_prompt
+            
+        response = self.client.messages.create(**kwargs)
+        
+        # Convert response to expected format
+        content = []
+        for block in response.content:
+            if block.type == "text":
+                content.append({"text": block.text})
+            # Handle other block types if needed
+        
+        return {"content": content}

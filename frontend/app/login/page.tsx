@@ -44,7 +44,7 @@ export default function LoginPage() {
         <div className="min-h-screen flex items-center justify-center bg-black text-white p-4">
             <Card className="w-full max-w-md bg-zinc-900 border-zinc-800 text-white">
                 <CardHeader>
-                    <CardTitle className="text-2xl text-center">Collective Diary</CardTitle>
+                    <CardTitle className="text-2xl text-center">Memor.ia</CardTitle>
                     <CardDescription className="text-center text-zinc-400">
                         Enter your phone number to log in
                     </CardDescription>

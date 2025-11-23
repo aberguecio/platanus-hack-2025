@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -155,6 +157,7 @@ class Event(EventBase):
     id: int
     summary: Optional[str] = None
     ai_context: Optional[str] = None
+    generated_narrative: Optional[str] = None  # Cached AI-generated narrative
     created_at: datetime
 
     class Config:
@@ -181,6 +184,15 @@ class Memory(MemoryBase):
     embedding: Optional[List[float]] = None
     created_at: datetime
 
+    class Config:
+        from_attributes = True
+
+
+# Event with nested memories (must be after Memory is defined)
+class EventWithMemories(Event):
+    """Event schema with nested memories for frontend display."""
+    memories: List[Memory] = []
+    
     class Config:
         from_attributes = True
 

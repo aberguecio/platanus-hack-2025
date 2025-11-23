@@ -18,7 +18,7 @@ class SearchResult:
         self.event_id = memory.event_id
         self.user_id = memory.user_id
         self.text = memory.text
-        self.image_url = memory.s3_url
+        self.s3_url = memory.s3_url
         self.created_at = memory.created_at
 
     def to_dict(self) -> dict:
@@ -28,7 +28,7 @@ class SearchResult:
             "event_id": self.event_id,
             "user_id": self.user_id,
             "text": self.text,
-            "image_url": self.image_url,
+            "s3_url": self.s3_url,
             "similarity_score": round(self.similarity_score, 4),
             "similarity_percentage": round(self.similarity_score * 100, 2),
             "created_at": self.created_at.isoformat() if self.created_at else None

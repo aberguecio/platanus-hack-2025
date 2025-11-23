@@ -1,39 +1,31 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { MemoryCard } from "@/components/memory-card"
-
-interface Memory {
-    id: number
-    text?: string
-    s3_url?: string
-    created_at: string
-    user_id: number
-}
+import { EventCard } from "@/components/event-card"
+import { EventWithMemories } from "@/lib/types"
 
 export function Feed() {
-    const [memories, setMemories] = useState<Memory[]>([])
+    const [events, setEvents] = useState<EventWithMemories[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        async function fetchMemories() {
+        async function fetchEvents() {
             try {
-                // TODO: RM must use the actual backend URL
                 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-                const response = await fetch(`${API_URL}/memories`)
+                const response = await fetch(`${API_URL}/events`)
                 if (!response.ok) {
-                    throw new Error("Failed to fetch memories")
+                    throw new Error("Failed to fetch events")
                 }
                 const data = await response.json()
-                setMemories(data)
+                setEvents(data)
             } catch (error) {
-                console.error("Error fetching memories:", error)
+                console.error("Error fetching events:", error)
             } finally {
                 setLoading(false)
             }
         }
 
-        fetchMemories()
+        fetchEvents()
     }, [])
 
     if (loading) {
@@ -45,13 +37,14 @@ export function Feed() {
     }
 
     return (
-        <div className="flex flex-col gap-8 pb-20">
-            {memories.map((memory) => (
-                <MemoryCard key={memory.id} memory={memory} />
+        <div className="flex flex-col gap-8">
+            {events.map((event) => (
+                <EventCard key={event.id} event={event} />
             ))}
-            {memories.length === 0 && (
-                <div className="text-center text-gray-500 py-10">
-                    No memories yet. Be the first to share!
+            {events.length === 0 && (
+                <div className="text-center text-gray-500 py-20">
+                    <p className="text-lg mb-2">No events yet</p>
+                    <p className="text-sm">Create your first event via Telegram to get started</p>
                 </div>
             )}
         </div>
