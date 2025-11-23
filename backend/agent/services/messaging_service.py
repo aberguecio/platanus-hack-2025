@@ -141,7 +141,8 @@ class MessagingService:
                 {
                     "role": msg.direction.value,
                     "content": msg.content,
-                    "has_photo": bool(msg.photo_s3_url)  # Include photo info
+                    "has_photo": bool(msg.photo_s3_url),  # Include photo info
+                    "image_description": msg.image_description  # Include Claude Vision description
                 }
                 for msg in reversed(recent_messages[1:])  # Skip el mensaje actual (primero en la lista)
             ] if len(recent_messages) > 1 else []

@@ -1,0 +1,57 @@
+[
+  {
+    "scenario": "Storage error during photo upload",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "add_memory", "result": "error"}],
+        "response": "Hubo un problema con el almacenamiento, no pude guardar la foto. ¿Intentamos de nuevo?"
+      }
+    ]
+  },
+  {
+    "scenario": "User asks to delete (not supported yet)",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "borra esa foto"
+      },
+      {
+        "role": "assistant",
+        "response": "Aún no puedo borrar cosas, pero lo tendré pronto"
+      }
+    ]
+  },
+  {
+    "scenario": "User asks about old photo details",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "qué colores tenía la foto del martes?"
+      },
+      {
+        "role": "assistant",
+        "response": "¿A qué evento corresponde esa foto? Así la busco y te digo"
+      }
+    ]
+  },
+  {
+    "scenario": "User tries to join non-existent event",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "úneme al evento 999"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "join_event", "result": "not_found"}],
+        "response": "No encontré ese evento. ¿Tienes el ID correcto?"
+      }
+    ]
+  }
+]

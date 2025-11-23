@@ -1,0 +1,51 @@
+{
+  "version": "2.0",
+  "description": "Prompt configuration for Telegram memories bot agent",
+
+  "components": {
+    "identity": "core/identity.txt",
+    "instructions": "core/instructions.xml"
+  },
+
+  "examples": {
+    "directory": "examples/",
+    "files": [
+      "event_creation.json",
+      "photo_upload.json",
+      "context_inference.json",
+      "ambiguity_handling.json",
+      "error_recovery.json",
+      "memory_enrichment.json",
+      "text_memory_capture.json"
+    ]
+  },
+
+  "context_strategy": {
+    "max_history_messages": 10,
+    "compaction": {
+      "enabled": true,
+      "trigger_threshold": 50,
+      "strategy": "sliding_window_with_summary",
+      "preserve_recent_count": 10,
+      "summary_max_tokens": 500
+    },
+    "event_context_window": 10,
+    "images": {
+      "mode": "descriptions_only",
+      "fallback_text": "[Foto enviada]"
+    }
+  },
+
+  "behavior": {
+    "response_style": "concise",
+    "error_tone": "transparent",
+    "proactive_event_inference": true,
+    "ambiguity_resolution": "ask_with_suggestion"
+  },
+
+  "settings": {
+    "model": "claude-sonnet-4-5-20250929",
+    "max_tokens": 1024,
+    "temperature": 1.0
+  }
+}

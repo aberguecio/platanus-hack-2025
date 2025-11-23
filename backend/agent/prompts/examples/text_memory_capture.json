@@ -1,0 +1,235 @@
+[
+  {
+    "scenario": "User shares detailed story after photo question",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true,
+        "image_description": "Mesa de restaurante con pizza y pasta, ambiente festivo con decoraciones de cumpleaños"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Photo saved. Now I should ask a specific question based on what I see",
+        "response": "Listo, guardada en 'Cumpleaños' ✨ Veo que están celebrando con pizza y pasta, ¿qué estaban festejando?",
+        "tool_use": {
+          "name": "add_memory",
+          "input": {
+            "event_id": 1,
+            "text": "",
+            "has_image": true
+          }
+        }
+      },
+      {
+        "role": "user",
+        "content": "Era mi cumpleaños 30! Fuimos con mi familia a mi restaurante favorito. Pedimos pizza napolitana y fettuccine alfredo. Todos cantaron feliz cumpleaños y me sorprendieron con un pastel gigante"
+      },
+      {
+        "role": "assistant",
+        "thinking": "This is a rich story with details: birthday celebration, who was there (family), what they ate, emotions (surprise). I should save this as a text memory.",
+        "response": "Qué lindo momento! Todo guardado en 'Cumpleaños' 🎉",
+        "tool_use": {
+          "name": "add_memory",
+          "input": {
+            "event_id": 1,
+            "text": "Era mi cumpleaños 30! Fuimos con mi familia a mi restaurante favorito. Pedimos pizza napolitana y fettuccine alfredo. Todos cantaron feliz cumpleaños y me sorprendieron con un pastel gigante",
+            "has_image": false
+          }
+        }
+      }
+    ]
+  },
+  {
+    "scenario": "User shares experience without photo first",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "Ayer tuvimos un día increíble en la playa. El agua estaba cristalina y pudimos ver peces de colores. Los niños construyeron castillos de arena enormes y después comimos empanadas mirando el atardecer"
+      },
+      {
+        "role": "assistant",
+        "thinking": "This is clearly a memory with rich details: beach day, what they saw (colorful fish), who was there (children), what they did (sand castles), what they ate (empanadas). Should save in most recent event or ask which event.",
+        "response": "¿A qué evento va este recuerdo? ¿O quieres que cree uno nuevo?",
+        "context_note": "If there was a recent 'Vacaciones' or 'Playa' event in the last 10 messages, agent should save directly to that event instead of asking"
+      },
+      {
+        "role": "user",
+        "content": "A vacaciones"
+      },
+      {
+        "role": "assistant",
+        "thinking": "User confirmed event. Save the original story to 'vacaciones' event.",
+        "response": "Listo, guardado en 'Vacaciones' ✨",
+        "tool_use": {
+          "name": "list_events",
+          "input": {
+            "search_query": "vacaciones"
+          }
+        },
+        "then": {
+          "name": "add_memory",
+          "input": {
+            "event_id": 2,
+            "text": "Ayer tuvimos un día increíble en la playa. El agua estaba cristalina y pudimos ver peces de colores. Los niños construyeron castillos de arena enormes y después comimos empanadas mirando el atardecer",
+            "has_image": false
+          }
+        }
+      }
+    ]
+  },
+  {
+    "scenario": "User shares emotions and context after second photo question",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true,
+        "image_description": "Grupo de 5 personas en un mirador de montaña al amanecer"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Photo of mountain viewpoint at sunrise with 5 people. Should ask specific question.",
+        "response": "Listo, guardada en 'Trekking' ✨ Veo que están en un mirador al amanecer, ¿cómo se sintieron cuando llegaron?",
+        "tool_use": {
+          "name": "add_memory",
+          "input": {
+            "event_id": 3,
+            "text": "",
+            "has_image": true
+          }
+        }
+      },
+      {
+        "role": "user",
+        "content": "Fue épico! Subimos 4 horas en la madrugada, estábamos todos cansados pero cuando vimos el amanecer valió totalmente la pena"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Good response with emotions and context. Can ask one more question (max 2 questions).",
+        "response": "¿Con quiénes estabas?",
+        "note": "Save previous response first before asking follow-up",
+        "tool_use": {
+          "name": "add_memory",
+          "input": {
+            "event_id": 3,
+            "text": "Fue épico! Subimos 4 horas en la madrugada, estábamos todos cansados pero cuando vimos el amanecer valió totalmente la pena",
+            "has_image": false
+          }
+        }
+      },
+      {
+        "role": "user",
+        "content": "Con mis amigos del club de montaña: Carlos, Ana, Diego y Valentina"
+      },
+      {
+        "role": "assistant",
+        "thinking": "2nd follow-up response. Should save and close conversation positively.",
+        "response": "Qué experiencia! Todo queda guardado en 'Trekking' ⛰️",
+        "tool_use": {
+          "name": "add_memory",
+          "input": {
+            "event_id": 3,
+            "text": "Con mis amigos del club de montaña: Carlos, Ana, Diego y Valentina",
+            "has_image": false
+          }
+        }
+      }
+    ]
+  },
+  {
+    "scenario": "User mentions event context and shares memory",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "crea evento hackaton platanus"
+      },
+      {
+        "role": "assistant",
+        "response": "Listo! Evento 'hackaton platanus' creado 🎉",
+        "tool_use": {
+          "name": "create_event",
+          "input": {
+            "name": "hackaton platanus",
+            "description": ""
+          }
+        }
+      },
+      {
+        "role": "user",
+        "content": "Fue una noche intensa de programación. Nuestro equipo trabajó hasta las 5am construyendo una app de memorias con IA. Ganamos el premio a mejor UX y nos dieron pizza gratis toda la noche"
+      },
+      {
+        "role": "assistant",
+        "thinking": "User just created 'hackaton platanus' event and is now sharing a detailed story about it. Clear context - should save this memory to that event.",
+        "response": "Genial! Guardado en 'hackaton platanus' 🏆",
+        "tool_use": {
+          "name": "add_memory",
+          "input": {
+            "event_id": 4,
+            "text": "Fue una noche intensa de programación. Nuestro equipo trabajó hasta las 5am construyendo una app de memorias con IA. Ganamos el premio a mejor UX y nos dieron pizza gratis toda la noche",
+            "has_image": false
+          }
+        }
+      }
+    ]
+  },
+  {
+    "scenario": "Don't save casual conversation",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "hola, cómo estás?"
+      },
+      {
+        "role": "assistant",
+        "thinking": "This is casual conversation, not a memory to save.",
+        "response": "¡Hola! Todo bien. ¿En qué te ayudo?"
+      },
+      {
+        "role": "user",
+        "content": "bien gracias"
+      },
+      {
+        "role": "assistant",
+        "thinking": "Still casual conversation, no memory content.",
+        "response": "Genial! Si quieres guardar fotos o crear eventos, avísame"
+      }
+    ]
+  },
+  {
+    "scenario": "User shares feelings and details - proactive save",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "lista mis eventos"
+      },
+      {
+        "role": "assistant",
+        "response": "Tienes 2 eventos:\n1. Vacaciones Europa (5 fotos)\n2. Cumpleaños María (3 fotos)",
+        "tool_use": {
+          "name": "list_events",
+          "input": {}
+        }
+      },
+      {
+        "role": "user",
+        "content": "en el cumpleaños de maría la pasamos increíble. Hicimos una cena sorpresa en su casa, decoramos todo con globos rosas que son su color favorito. Cuando llegó se puso a llorar de felicidad. Cocinamos su plato favorito: lasagna de espinaca"
+      },
+      {
+        "role": "assistant",
+        "thinking": "User just listed events and is now sharing a rich story about 'Cumpleaños María'. Clear event context. This has emotions (happy crying), details (pink balloons, spinach lasagna), and story. Should save proactively.",
+        "response": "Qué lindo momento! Guardado en 'Cumpleaños María' 💕",
+        "tool_use": {
+          "name": "add_memory",
+          "input": {
+            "event_id": 2,
+            "text": "en el cumpleaños de maría la pasamos increíble. Hicimos una cena sorpresa en su casa, decoramos todo con globos rosas que son su color favorito. Cuando llegó se puso a llorar de felicidad. Cocinamos su plato favorito: lasagna de espinaca",
+            "has_image": false
+          }
+        }
+      }
+    ]
+  }
+]
+

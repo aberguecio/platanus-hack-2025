@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, List
 from anthropic import Anthropic
 from .base import LLMAgent
 from .tools import get_registry, ExecutionContext
-from .prompts import get_prompt_builder
+from .prompts.prompt_builder_v2 import get_prompt_builder
 
 class AnthropicAgent(LLMAgent):
     """
@@ -18,8 +18,9 @@ class AnthropicAgent(LLMAgent):
             raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
         self.client = Anthropic(api_key=self.api_key)
-        self.model = "claude-sonnet-4-5" #"claude-haiku-4-5-20251001" #"claude-3-haiku-20240307"
+
         self.prompt_builder = get_prompt_builder()
+        self.model = self.prompt_builder.get_config("settings", {}).get("model", "claude-sonnet-4-5-20250929")
 
     async def _build_message_content(
         self, 
@@ -133,32 +134,28 @@ class AnthropicAgent(LLMAgent):
         registry = get_registry()
         tools = registry.get_schemas()
 
-        # Build system prompt with context using the prompt builder
+        # Build system prompt with new V2 builder (always include examples)
         system_prompt = self.prompt_builder.build_system_prompt(
             telegram_id=ctx.telegram_id,
             username=ctx.username,
             first_name=ctx.first_name,
-            has_photo=ctx.has_photo
+            has_photo=ctx.has_photo,
+            conversation_history=ctx.conversation_history,
+            include_examples=True  # Always include for consistent behavior
         )
 
         print(f"[AGENT] System prompt length: {len(system_prompt)} chars")
 
-        # Initialize message history for the conversation
+        # Initialize message history with smart formatting
         messages = []
 
-        # Include conversation history for context (if available)
+        # Use the new context manager to format conversation history
         if ctx.conversation_history and len(ctx.conversation_history) > 0:
-            for msg in ctx.conversation_history:
-                # Check if message has photo information
-                msg_content = msg["content"]
-                if msg.get("has_photo") and msg["role"] == "user":
-                    # Indicate photo was present without including the full image
-                    msg_content = f"[Foto enviada] {msg_content}"
-                
-                messages.append({
-                    "role": msg["role"],
-                    "content": msg_content
-                })
+            formatted_history = self.prompt_builder.format_conversation_history(
+                ctx.conversation_history,
+                total_message_count=len(ctx.conversation_history)
+            )
+            messages.extend(formatted_history)
 
         # Add current user message (with photo if present)
         current_message_content = await self._build_message_content(

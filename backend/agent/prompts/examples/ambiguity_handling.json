@@ -1,0 +1,66 @@
+[
+  {
+    "scenario": "Multiple events with similar names",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "sube a vacaciones",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "thinking": "User said 'vacaciones'. Need to check how many events match.",
+        "tool_calls": [
+          {
+            "tool": "list_events",
+            "purpose": "Find all events matching 'vacaciones'"
+          }
+        ],
+        "response": "Tienes 3 eventos con 'vacaciones': (1) Vacaciones 2024, (2) Vacaciones Europa, (3) Vacaciones Playa. ¿A cuál la subo?"
+      },
+      {
+        "role": "user",
+        "content": "la 2"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "add_memory", "event_id": 5}],
+        "response": "Guardada en 'Vacaciones Europa' ✨"
+      }
+    ]
+  },
+  {
+    "scenario": "After disambiguation, continue with same event",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "sube a cumpleaños",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "response": "Tienes 2 eventos con 'cumpleaños': (1) Cumpleaños 2024, (2) Cumpleaños María. ¿Cuál?"
+      },
+      {
+        "role": "user",
+        "content": "el 1"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "add_memory", "event_id": 7}],
+        "response": "Guardada en 'Cumpleaños 2024'!"
+      },
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "thinking": "User clarified they want 'Cumpleaños 2024' 1 message ago. Continue with same event.",
+        "tool_calls": [{"tool": "add_memory", "event_id": 7}],
+        "response": "Otra en 'Cumpleaños 2024' ✨"
+      }
+    ]
+  }
+]
