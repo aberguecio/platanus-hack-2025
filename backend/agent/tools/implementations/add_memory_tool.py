@@ -1,6 +1,7 @@
 from typing import Dict, Any
 from ..base_tool import BaseTool, ExecutionContext
 from services import DatabaseService
+from enums import MediaTypeEnum
 
 
 class AddMemoryTool(BaseTool):
@@ -37,6 +38,7 @@ class AddMemoryTool(BaseTool):
 
         event_id = tool_input.get("event_id")
         memory_text = tool_input.get("text")
+        has_image = tool_input.get("has_image", False)
 
         # Handle image from context if available
         photo_file_id = ctx.photo_file_id
@@ -44,11 +46,32 @@ class AddMemoryTool(BaseTool):
 
         print(f"[TOOL] add_memory - event_id: {event_id}")
         print(f"[TOOL] add_memory - memory_text: {memory_text}")
+        print(f"[TOOL] add_memory - has_image param: {has_image}")
         print(f"[TOOL] add_memory - context.has_photo: {ctx.has_photo}")
         print(f"[TOOL] add_memory - photo_file_id from context: {photo_file_id}")
 
-        # If there's a photo, download from Telegram and upload to S3
-        if photo_file_id:
+        # If has_image is True but no photo_file_id in current context,
+        # search for recent photo in conversation history
+        if has_image and not photo_file_id and ctx.conversation_id:
+            print(f"[TOOL] Searching for recent photo in conversation history...")
+            from models import Message, MessageDirectionEnum
+            
+            # Get the last 5 USER messages with photos
+            recent_messages = ctx.db.query(Message).filter(
+                Message.conversation_id == ctx.conversation_id,
+                Message.direction == MessageDirectionEnum.USER,
+                Message.photo_s3_url.isnot(None)
+            ).order_by(Message.created_at.desc()).limit(5).all()
+            
+            if recent_messages:
+                # Use the most recent photo
+                image_url = recent_messages[0].photo_s3_url
+                print(f"[TOOL] Found recent photo in history: {image_url}")
+            else:
+                print(f"[TOOL] No recent photo found in history")
+
+        # If there's a photo_file_id in current context, download from Telegram and upload to S3
+        if photo_file_id and not image_url:
             if not ctx.telegram_service:
                 print("[TOOL] WARNING: telegram_service not available")
                 image_url = photo_file_id  # Fallback to file_id
@@ -81,14 +104,15 @@ class AddMemoryTool(BaseTool):
             user=ctx.user,
             event_id=event_id,
             text=memory_text,
-            image_url=image_url,
+            s3_url=image_url,
+            media_type=MediaTypeEnum.IMAGE if image_url else None,
         )
 
         if memory:
             result_msg = f"Memory added to event #{event_id}!"
             if image_url:
                 if image_url.startswith("http"):
-                    result_msg += f" (photo uploaded to S3)"
+                    result_msg += f" (photo saved from history)" if has_image and not photo_file_id else f" (photo uploaded to S3)"
                 else:
                     result_msg += f" (photo saved as Telegram file_id)"
             return {"success": True, "message": result_msg}

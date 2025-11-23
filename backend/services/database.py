@@ -1,11 +1,14 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+import logging
 from models import (
     User, Event, Memory, user_events,
     Channel, AIMemoryAssistant, Conversation, Message,
     MediaTypeEnum, ChannelTypeEnum, ConversationStatusEnum, MessageDirectionEnum
 )
+
+logger = logging.getLogger(__name__)
 
 class DatabaseService:
     """Service for database operations"""
@@ -310,28 +313,75 @@ class DatabaseService:
         return message
 
     @staticmethod
-    def save_message(
+    async def save_message(
         db: Session,
         conversation_id: int,
         direction: MessageDirectionEnum,
-        content: str
+        content: str,
+        photo_file_id: Optional[str] = None,
+        telegram_service: Optional[Any] = None,
+        image_service: Optional[Any] = None,
+        s3_service: Optional[Any] = None
     ) -> Message:
         """
-        Save a message to the database.
+        Save a message to the database with embedding generation.
         
         Args:
             db: Database session
             conversation_id: ID of the conversation
             direction: Direction of the message (USER or ASSISTANT)
             content: Content of the message
+            photo_file_id: Optional Telegram file_id for photo
+            telegram_service: Optional TelegramService for downloading photos
+            image_service: Optional ImageService for processing images
+            s3_service: Optional S3Service for uploading photos
             
         Returns:
             Created Message object
         """
+        embedding = None
+        embedding_text = content
+        photo_s3_url = None
+        
+        # Process image if present
+        if photo_file_id and image_service:
+            try:
+                logger.info(f"[DATABASE_SERVICE] Processing photo for message: {photo_file_id}")
+                # Generate image description and upload to S3
+                description, s3_url = await image_service.process_telegram_photo(
+                    file_id=photo_file_id,
+                    store_in_s3=True
+                )
+                photo_s3_url = s3_url
+                embedding_text = description
+                logger.info(f"[DATABASE_SERVICE] Photo uploaded to S3: {s3_url}")
+                logger.info(f"[DATABASE_SERVICE] Generated image description ({len(description)} chars)")
+            except Exception as e:
+                logger.error(f"[DATABASE_SERVICE] Error processing image: {e}")
+                # Continue with text content as fallback
+                embedding_text = content
+        
+        # Generate embedding
+        if embedding_text and embedding_text.strip():
+            try:
+                from services.embedding import EmbeddingService
+                logger.info(f"[DATABASE_SERVICE] Generating embedding for message...")
+                embedding = EmbeddingService.embed_text(
+                    embedding_text,
+                    input_type="document"
+                )
+                logger.info(f"[DATABASE_SERVICE] Embedding generated successfully ({len(embedding)} dimensions)")
+            except Exception as e:
+                logger.error(f"[DATABASE_SERVICE] Error generating embedding: {e}")
+                # Continue without embedding - don't block message save
+        
+        # Create message with embedding and photo URL
         message = Message(
             conversation_id=conversation_id,
             direction=direction,
-            content=content
+            content=content,
+            photo_s3_url=photo_s3_url,
+            embedding=embedding
         )
         db.add(message)
         db.commit()

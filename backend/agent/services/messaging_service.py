@@ -27,6 +27,13 @@ class MessagingService:
         self.telegram_service = telegram_service
         self.database_service = database_service
         self.s3_service = s3_service
+        
+        # Initialize ImageService for processing photos in messages
+        from services.image import ImageService
+        self.image_service = ImageService(
+            telegram_service=telegram_service,
+            s3_service=s3_service
+        )
 
     async def send_message(
         self,
@@ -106,11 +113,15 @@ class MessagingService:
 
             # 3. Guardar mensaje del usuario en la base de datos
             print(f"[MESSAGING_SERVICE] Saving user message to database")
-            self.database_service.save_message(
+            await self.database_service.save_message(
                 db=db,
                 conversation_id=conversation.id,
                 direction=MessageDirectionEnum.USER,
-                content=message_data["text"]
+                content=message_data["text"],
+                photo_file_id=message_data.get("photo_file_id"),
+                telegram_service=self.telegram_service,
+                image_service=self.image_service,
+                s3_service=self.s3_service
             )
 
             # 4. Obtener historial reciente de conversación
@@ -132,7 +143,7 @@ class MessagingService:
 
             # 5. Preparar contexto de ejecución para el agente
             execution_context = self._build_execution_context(
-                message_data, user, db, conversation_history
+                message_data, user, db, conversation.id, conversation_history
             )
 
             print(f"[MESSAGING_SERVICE] ExecutionContext prepared:")
@@ -152,7 +163,7 @@ class MessagingService:
 
             # 7. Guardar respuesta del bot en la base de datos
             print(f"[MESSAGING_SERVICE] Saving assistant response to database")
-            self.database_service.save_message(
+            await self.database_service.save_message(
                 db=db,
                 conversation_id=conversation.id,
                 direction=MessageDirectionEnum.ASSISTANT,
@@ -180,6 +191,7 @@ class MessagingService:
         message_data: Dict[str, Any],
         user: Any,
         db: Session,
+        conversation_id: int,
         conversation_history: list = None
     ) -> ExecutionContext:
         """
@@ -189,6 +201,7 @@ class MessagingService:
             message_data: Datos extraídos del mensaje de Telegram
             user: Objeto usuario de la base de datos
             db: Sesión de base de datos
+            conversation_id: ID de la conversación actual
             conversation_history: Historial de conversación (opcional)
 
         Returns:
@@ -209,6 +222,7 @@ class MessagingService:
             s3_service=self.s3_service,
             telegram_service=self.telegram_service,
             metadata=metadata,
+            conversation_id=conversation_id,
             conversation_history=conversation_history or []
         )
 

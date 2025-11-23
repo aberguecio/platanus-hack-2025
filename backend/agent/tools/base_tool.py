@@ -19,7 +19,8 @@ class ExecutionContext:
     # Request metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
     
-    # Conversation history (list of messages with role and content)
+    # Conversation context
+    conversation_id: Optional[int] = None
     conversation_history: Optional[List[Dict[str, str]]] = None
 
     # Convenient properties to access common metadata
