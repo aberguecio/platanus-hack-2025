@@ -1,0 +1,86 @@
+[
+  {
+    "scenario": "Photo with explicit event mention",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "sube a hackaton",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "thinking": "User wants to upload photo to 'hackaton' event. Need to find event_id first.",
+        "tool_calls": [
+          {
+            "tool": "list_events",
+            "purpose": "Find event with name matching 'hackaton'"
+          },
+          {
+            "tool": "add_memory",
+            "input": {
+              "event_id": 1,
+              "has_image": true
+            }
+          }
+        ],
+        "response": "Listo, guardada en 'Hackaton' ✨"
+      }
+    ]
+  },
+  {
+    "scenario": "Photo after recent event creation (context inference)",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "crea evento viaje a la playa"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [{"tool": "create_event"}],
+        "response": "Dale! Creé 'Viaje a la playa'"
+      },
+      {
+        "role": "user",
+        "content": "mira esto",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "thinking": "User just created 'Viaje a la playa' 1 message ago. Photo is clearly for that event.",
+        "tool_calls": [
+          {
+            "tool": "add_memory",
+            "input": {
+              "event_id": 2,
+              "text": "mira esto",
+              "has_image": true
+            },
+            "note": "Using event_id from context - user just created this event"
+          }
+        ],
+        "response": "Guardada en 'Viaje a la playa'!"
+      }
+    ]
+  },
+  {
+    "scenario": "Photo without context or events",
+    "conversation": [
+      {
+        "role": "user",
+        "content": "",
+        "has_photo": true
+      },
+      {
+        "role": "assistant",
+        "thinking": "User sent photo but has no events created. Need to suggest creating event first.",
+        "tool_calls": [
+          {
+            "tool": "list_events",
+            "purpose": "Check if user has any events"
+          }
+        ],
+        "response": "Aún no tienes eventos. ¿Quieres que cree uno primero? Dime cómo lo llamamos"
+      }
+    ]
+  }
+]

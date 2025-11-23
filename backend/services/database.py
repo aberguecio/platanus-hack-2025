@@ -344,7 +344,8 @@ class DatabaseService:
         embedding = None
         embedding_text = content
         photo_s3_url = None
-        
+        image_description = None
+
         # Process image if present
         if photo_file_id and image_service:
             try:
@@ -355,6 +356,7 @@ class DatabaseService:
                     store_in_s3=True
                 )
                 photo_s3_url = s3_url
+                image_description = description  # Store description for context
                 embedding_text = description
                 logger.info(f"[DATABASE_SERVICE] Photo uploaded to S3: {s3_url}")
                 logger.info(f"[DATABASE_SERVICE] Generated image description ({len(description)} chars)")
@@ -377,12 +379,13 @@ class DatabaseService:
                 logger.error(f"[DATABASE_SERVICE] Error generating embedding: {e}")
                 # Continue without embedding - don't block message save
         
-        # Create message with embedding and photo URL
+        # Create message with embedding, photo URL, and image description
         message = Message(
             conversation_id=conversation_id,
             direction=direction,
             content=content,
             photo_s3_url=photo_s3_url,
+            image_description=image_description,
             embedding=embedding
         )
         db.add(message)
