@@ -2,7 +2,13 @@ import os
 import tempfile
 import httpx
 from typing import List, Optional
-from moviepy.editor import VideoFileClip, ImageClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip
+import PIL.Image
+
+# Monkeypatch ANTIALIAS for moviepy compatibility with Pillow 10+
+if not hasattr(PIL.Image, 'ANTIALIAS'):
+    PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
+
+from moviepy.editor import VideoFileClip, ImageClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip, vfx
 from services.s3 import S3Service
 
 class VideoService:
@@ -60,7 +66,12 @@ class VideoService:
                         # Create clip
                         if media_type == "image":
                             # Image clip: 3 seconds duration, resize to 720p height
-                            clip = ImageClip(local_path).set_duration(3).resize(height=720)
+                            # Pass duration to constructor to avoid set_duration issues
+                            clip = ImageClip(local_path, duration=3)
+                            
+                            # Resize using vfx
+                            clip = clip.fx(vfx.resize, height=720)
+                            
                             # Add fade in/out
                             clip = clip.crossfadein(0.5)
                         else:
@@ -68,7 +79,10 @@ class VideoService:
                             clip = VideoFileClip(local_path)
                             if clip.duration > 5:
                                 clip = clip.subclip(0, 5)
-                            clip = clip.resize(height=720)
+                            
+                            # Resize using vfx
+                            clip = clip.fx(vfx.resize, height=720)
+                            
                             # Add fade in/out
                             clip = clip.crossfadein(0.5)
                             
@@ -89,15 +103,42 @@ class VideoService:
             print(f"[VIDEO_SERVICE] Concatenating {len(clips)} clips...")
             
             # Concatenate clips
-            final_clip = concatenate_videoclips(clips, method="compose")
+            # method="compose" is safer for different sizes, but we should try to ensure consistency
+            try:
+                final_clip = concatenate_videoclips(clips, method="compose")
+            except Exception as e:
+                print(f"[VIDEO_SERVICE] Error concatenating clips: {e}")
+                raise e
             
             # Write output file
             output_path = os.path.join(temp_dir, output_filename)
-            final_clip.write_videofile(output_path, fps=24, codec='libx264', audio_codec='aac')
+            print(f"[VIDEO_SERVICE] Writing video to {output_path}...")
+            
+            try:
+                final_clip.write_videofile(
+                    output_path, 
+                    fps=24, 
+                    codec='libx264', 
+                    audio_codec='aac',
+                    logger='bar' # Show progress bar in logs
+                )
+            except Exception as e:
+                print(f"[VIDEO_SERVICE] Error writing video file (ffmpeg issue?): {e}")
+                # Check if ffmpeg is installed
+                import shutil
+                if not shutil.which("ffmpeg"):
+                    print("[VIDEO_SERVICE] CRITICAL: ffmpeg binary not found in PATH")
+                raise e
             
             print(f"[VIDEO_SERVICE] Video generated at {output_path}")
             
+            # Check if file exists and has size
+            if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                print("[VIDEO_SERVICE] Output file is missing or empty")
+                return None
+            
             # Upload to S3
+            print(f"[VIDEO_SERVICE] Uploading to S3...")
             with open(output_path, "rb") as f:
                 video_data = f.read()
                 

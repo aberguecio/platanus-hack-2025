@@ -29,6 +29,19 @@ export default function EventPage({ params }: { params: { id: string } }) {
     const [data, setData] = useState<EventData | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | undefined>(undefined)
+
+    useEffect(() => {
+        if (data?.event?.memories) {
+            const videoMemory = data.event.memories.find((m: any) =>
+                m?.media_type === 'video' &&
+                (m?.text?.includes("Video resumen") || m?.text?.includes("generated automatically"))
+            )
+            if (videoMemory) {
+                setGeneratedVideoUrl(videoMemory.s3_url)
+            }
+        }
+    }, [data])
 
     useEffect(() => {
         async function fetchEventData() {
@@ -64,8 +77,8 @@ export default function EventPage({ params }: { params: { id: string } }) {
                 ])
 
                 // Check if event has cached narrative, otherwise generate it
-                // let narrative = event.generated_narrative || null
-                let narrative = null
+                let narrative = event.generated_narrative || null
+                // let narrative = null
                 if (!narrative) {
                     console.log("[EventPage] No cached narrative, generating new one...")
                     const narrativeRes = await fetch(`${API_URL}/events/${params.id}/generate-narrative-v2`, { method: 'POST' })
@@ -89,9 +102,9 @@ export default function EventPage({ params }: { params: { id: string } }) {
                         .then(data => {
                             console.log("[EventPage] Video generation completed:", data)
                             if (data.video_url) {
-                                // Optional: Update state to show video immediately without refresh
-                                // For now, the user can refresh or we can implement a toast
+                                // Update state to show video immediately without refresh
                                 console.log("Video generated at:", data.video_url)
+                                setGeneratedVideoUrl(data.video_url)
                             }
                         })
                         .catch(err => console.error("[EventPage] Video generation failed:", err))
@@ -224,9 +237,11 @@ export default function EventPage({ params }: { params: { id: string } }) {
 
     console.log("Display hero image:", displayHeroImage)
 
-    // Find aftermovie video
-    let aftermovieUrl = undefined
-    if (event?.memories) {
+
+
+    // Find aftermovie video (initial check)
+    let aftermovieUrl = generatedVideoUrl
+    if (!aftermovieUrl && event?.memories) {
         // Look for the auto-generated video memory
         const videoMemory = event.memories.find((m: any) =>
             m?.media_type === 'video' &&

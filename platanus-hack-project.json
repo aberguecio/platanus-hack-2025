@@ -1,0 +1,5 @@
+{
+  "project-name": "MemoryBot - Bot de Memorias Conversacional",
+  "project-description-spanish": "Bot de Telegram impulsado por IA que permite a los usuarios almacenar y organizar recuerdos (fotos y texto) en eventos mediante conversación natural. Utiliza Claude AI como agente inteligente con búsqueda semántica mediante embeddings y análisis de imágenes con visión por computadora.",
+  "deploy-url": "https://ph.berguecio.cl"
+}
